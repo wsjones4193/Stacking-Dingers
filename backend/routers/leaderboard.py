@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import date
 from typing import Annotated, Optional
 
@@ -70,6 +71,11 @@ def get_leaderboard(
         total_points = standing.total_points if standing else 0.0
         round_reached = profile.round_reached if profile else None
         peak_2wk = profile.peak_2wk_score if profile else None
+        peak_weeks = (
+            json.loads(profile.peak_window_weeks_json)
+            if profile and profile.peak_window_weeks_json
+            else None
+        )
         ceiling_tier = profile.ceiling_tier if profile else None
         archetype = seq.archetype_tag if seq else None
 
@@ -83,6 +89,7 @@ def get_leaderboard(
             total_points=total_points,
             round_reached=round_reached,
             peak_2wk_score=peak_2wk,
+            peak_window_weeks=peak_weeks,
             ceiling_tier=ceiling_tier,
             archetype_tag=archetype,
         ))

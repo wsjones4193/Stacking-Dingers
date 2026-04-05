@@ -163,6 +163,7 @@ class LeaderboardEntry(BaseModel):
     total_points: float
     round_reached: Optional[int]
     peak_2wk_score: Optional[float]
+    peak_window_weeks: Optional[list[int]]
     ceiling_tier: Optional[str]
     archetype_tag: Optional[str]
 

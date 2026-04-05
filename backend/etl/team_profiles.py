@@ -311,11 +311,14 @@ def compute_and_store_team_profiles(
 def _build_draft_sequences(season: int, session: Session) -> int:
     """Build pick sequence arrays and tag archetypes for all drafts in a season."""
     # Load all picks for this season, ordered by pick_number
+    draft_ids = {
+        d.draft_id
+        for d in session.exec(select(Draft).where(Draft.season == season)).all()
+    }
     stmt = (
         select(Pick, Player)
         .join(Player, Pick.player_id == Player.player_id)
-        .join(Draft, Pick.draft_id == Draft.draft_id)
-        .where(Draft.season == season)
+        .where(Pick.draft_id.in_(draft_ids))
         .order_by(Pick.draft_id, Pick.pick_number)
     )
     rows = session.exec(stmt).all()

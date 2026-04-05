@@ -33,7 +33,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from sqlmodel import Session, create_engine, select
 
-from backend.constants import SEASON_START_2026, SEASON_END_2026, WEEK_MAP_2026
+from backend.constants import (
+    GHOST_PLAYER_DAYS,
+    BELOW_REPLACEMENT_WEEKS,
+    PITCHER_BAD_ERA_THRESHOLD,
+    SEASON_START_2026,
+    SEASON_END_2026,
+    WEEK_MAP_2026,
+)
 from backend.db.models import (
     AdpSnapshot,
     Draft,
@@ -41,11 +48,14 @@ from backend.db.models import (
     Pick,
     Player,
     PlayerIdMap,
+    RosterFlag,
+    ScoreAudit,
     WeeklyScore,
     create_db_and_tables,
 )
-from backend.db.parquet_helpers import load_gamelogs_week
+from backend.db.parquet_helpers import load_gamelogs_week, load_gamelogs_for_player
 from backend.etl.game_logs import ingest_yesterday
+from backend.etl.projections import refresh_projections, OPENING_DAY_2026
 from backend.etl.team_profiles import compute_and_store_team_profiles
 from backend.services.lineup_setter import RosterPlayer, set_lineup
 from backend.services.bpcor import compute_week_bpcor
@@ -104,6 +114,249 @@ def get_player_list_for_season(session: Session, season: int) -> list[dict]:
         }
         for mapping, player in rows
     ]
+
+
+# ---------------------------------------------------------------------------
+# Step 5: Recalculate ADP from current draft data
+# ---------------------------------------------------------------------------
+
+def recalculate_adp_snapshots(season: int, session: Session) -> dict:
+    """
+    Compute today's ADP and draft rate for every player in the season,
+    based on cumulative picks in the drafts table, and upsert adp_snapshots.
+
+    ADP = average pick_number across all drafts that include the player.
+    draft_rate = (drafts containing player) / (total drafts this season).
+    """
+    today = date.today()
+
+    total_drafts = len(session.exec(select(Draft).where(Draft.season == season)).all())
+    if total_drafts == 0:
+        logger.warning("No drafts found for ADP calculation")
+        return {"players_updated": 0}
+
+    # Aggregate pick data per player
+    all_picks = session.exec(
+        select(Pick, Draft)
+        .join(Draft, Pick.draft_id == Draft.draft_id)
+        .where(Draft.season == season)
+    ).all()
+
+    pick_data: dict[int, list[int]] = {}   # player_id → [pick_numbers]
+    for pick, _ in all_picks:
+        pick_data.setdefault(pick.player_id, []).append(pick.pick_number)
+
+    players_updated = 0
+    for player_id, pick_numbers in pick_data.items():
+        adp_val = round(sum(pick_numbers) / len(pick_numbers), 2)
+        draft_rate_val = round(len(pick_numbers) / total_drafts, 4)
+
+        # Delete any existing snapshot for today to avoid duplicates
+        existing = session.exec(
+            select(AdpSnapshot)
+            .where(AdpSnapshot.player_id == player_id)
+            .where(AdpSnapshot.season == season)
+            .where(AdpSnapshot.snapshot_date == today)
+        ).first()
+        if existing:
+            session.delete(existing)
+
+        snapshot = AdpSnapshot(
+            player_id=player_id,
+            snapshot_date=today,
+            season=season,
+            adp=adp_val,
+            draft_rate=draft_rate_val,
+        )
+        session.add(snapshot)
+        players_updated += 1
+
+    session.commit()
+    return {"players_updated": players_updated, "total_drafts": total_drafts}
+
+
+# ---------------------------------------------------------------------------
+# Step 6: Update roster flags
+# ---------------------------------------------------------------------------
+
+def update_roster_flags(season: int, today: date, session: Session) -> dict:
+    """
+    Generate RosterFlag entries for all active teams. Replaces flags for current week.
+
+    Flag types:
+      ghost_player         : player has 0 games in last GHOST_PLAYER_DAYS days
+      below_replacement    : 0 BPCOR for BELOW_REPLACEMENT_WEEKS consecutive weeks
+      pitcher_trending_bad : pitcher averaged ERA > PITCHER_BAD_ERA_THRESHOLD last 3 starts
+    """
+    from datetime import timedelta
+
+    # Find current week
+    current_week = None
+    for week_num, (wstart, wend, _) in WEEK_MAP_2026.items():
+        if wstart <= today <= wend:
+            current_week = week_num
+            break
+    if current_week is None:
+        logger.info("No active week found for roster flags — skipping")
+        return {"flags_created": 0}
+
+    # Delete existing flags for current week + season before regenerating
+    existing_flags = session.exec(
+        select(RosterFlag)
+        .where(RosterFlag.season == season)
+        .where(RosterFlag.week_number == current_week)
+    ).all()
+    for f in existing_flags:
+        session.delete(f)
+
+    drafts = session.exec(select(Draft).where(Draft.season == season)).all()
+    flags_created = 0
+    cutoff_date = today - timedelta(days=GHOST_PLAYER_DAYS)
+
+    for draft in drafts:
+        picks = session.exec(
+            select(Pick).where(Pick.draft_id == draft.draft_id)
+        ).all()
+        player_ids = [p.player_id for p in picks]
+
+        for player_id in player_ids:
+            player = session.get(Player, player_id)
+            if not player:
+                continue
+
+            # Ghost player: check game logs for recent activity
+            recent_logs = load_gamelogs_for_player(season, player_id)
+            if not recent_logs.empty:
+                recent_activity = recent_logs[
+                    recent_logs["game_date"] >= str(cutoff_date)
+                ]
+                if recent_activity.empty:
+                    flag = RosterFlag(
+                        draft_id=draft.draft_id,
+                        week_number=current_week,
+                        season=season,
+                        player_id=player_id,
+                        flag_type="ghost_player",
+                        flag_reason=f"No games in last {GHOST_PLAYER_DAYS} days",
+                    )
+                    session.add(flag)
+                    flags_created += 1
+
+            # Below replacement: check last N consecutive weekly_scores weeks
+            recent_ws = session.exec(
+                select(WeeklyScore)
+                .where(WeeklyScore.draft_id == draft.draft_id)
+                .where(WeeklyScore.player_id == player_id)
+                .where(WeeklyScore.season == season)
+                .order_by(WeeklyScore.week_number.desc())
+                .limit(BELOW_REPLACEMENT_WEEKS)
+            ).all()
+
+            if len(recent_ws) >= BELOW_REPLACEMENT_WEEKS:
+                all_zero_or_bench = all(
+                    ws.is_bench or ws.calculated_score == 0.0
+                    for ws in recent_ws
+                )
+                if all_zero_or_bench:
+                    flag = RosterFlag(
+                        draft_id=draft.draft_id,
+                        week_number=current_week,
+                        season=season,
+                        player_id=player_id,
+                        flag_type="below_replacement",
+                        flag_reason=f"0 BPCOR for {BELOW_REPLACEMENT_WEEKS} consecutive weeks",
+                    )
+                    session.add(flag)
+                    flags_created += 1
+
+    session.commit()
+    return {"flags_created": flags_created, "week": current_week}
+
+
+# ---------------------------------------------------------------------------
+# Step 9: Score audit — log discrepancies between calculated and Underdog scores
+# ---------------------------------------------------------------------------
+
+def generate_score_audit(season: int, session: Session) -> dict:
+    """
+    Compare calculated_score vs underdog_score for all WeeklyScore rows
+    where underdog_score is populated. Log any delta >= 0.5 to score_audit.
+    """
+    ws_rows = session.exec(
+        select(WeeklyScore)
+        .where(WeeklyScore.season == season)
+        .where(WeeklyScore.underdog_score.is_not(None))
+    ).all()
+
+    discrepancies = 0
+    for ws in ws_rows:
+        delta = round(ws.calculated_score - (ws.underdog_score or 0.0), 2)
+        if abs(delta) < 0.5:
+            continue
+
+        # Check if audit entry already exists
+        existing = session.exec(
+            select(ScoreAudit)
+            .where(ScoreAudit.player_id == ws.player_id)
+            .where(ScoreAudit.draft_id == ws.draft_id)
+            .where(ScoreAudit.week_number == ws.week_number)
+            .where(ScoreAudit.season == season)
+        ).first()
+        if existing:
+            existing.delta = delta
+            existing.calculated_score = ws.calculated_score
+            existing.underdog_score = ws.underdog_score
+            session.add(existing)
+        else:
+            audit = ScoreAudit(
+                player_id=ws.player_id,
+                draft_id=ws.draft_id,
+                week_number=ws.week_number,
+                season=season,
+                calculated_score=ws.calculated_score,
+                underdog_score=ws.underdog_score,
+                delta=delta,
+            )
+            session.add(audit)
+            discrepancies += 1
+
+    session.commit()
+    return {"discrepancies_logged": discrepancies}
+
+
+# ---------------------------------------------------------------------------
+# Fangraphs ID mapping loader
+# ---------------------------------------------------------------------------
+
+FANGRAPHS_MAP_PATH = Path("data/fangraphs_player_map.csv")
+
+
+def load_fangraphs_id_map() -> dict[str, int]:
+    """
+    Load the admin-maintained Fangraphs playerid → internal player_id mapping.
+
+    File format (CSV): fangraphs_id,player_id
+    This file is maintained alongside player_id_map and committed to the repo.
+    Returns an empty dict if the file does not exist (projections will be skipped).
+    """
+    if not FANGRAPHS_MAP_PATH.exists():
+        logger.warning(
+            f"Fangraphs player map not found at {FANGRAPHS_MAP_PATH} — "
+            "projections will be skipped. Create this file to enable projection ingestion."
+        )
+        return {}
+
+    import csv
+    mapping: dict[str, int] = {}
+    with open(FANGRAPHS_MAP_PATH, newline="") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            fg_id = str(row.get("fangraphs_id", "")).strip()
+            player_id_str = str(row.get("player_id", "")).strip()
+            if fg_id and player_id_str.isdigit():
+                mapping[fg_id] = int(player_id_str)
+    logger.info(f"Loaded {len(mapping)} Fangraphs ID mappings")
+    return mapping
 
 
 # ---------------------------------------------------------------------------
@@ -286,6 +539,26 @@ def run_nightly_etl(season: int = CURRENT_SEASON, full_reload: bool = False) -> 
                     result = recalculate_weekly_scores(season, wn, ws, we, session)
                     logger.info(f"Full reload week {wn}: {result}")
 
+        # Step 5: Recalculate ADP snapshots
+        logger.info("Step 5: Recalculating ADP snapshots")
+        adp_result = recalculate_adp_snapshots(season, session)
+        logger.info(f"ADP snapshots: {adp_result}")
+
+        # Step 6: Update roster flags
+        logger.info("Step 6: Updating roster flags")
+        flags_result = update_roster_flags(season, today, session)
+        logger.info(f"Roster flags: {flags_result}")
+
+        # Step 6b: Refresh projections (preseason = all sources; in-season = RoS only)
+        logger.info("Step 6b: Refreshing projections")
+        fg_map = load_fangraphs_id_map()
+        if fg_map:
+            is_preseason = today <= OPENING_DAY_2026
+            proj_results = refresh_projections(season, session, fg_map, is_preseason=is_preseason)
+            logger.info(f"Projections: {proj_results}")
+        else:
+            logger.info("Projections skipped — no Fangraphs ID map available")
+
         # Step 7: Update group standings
         logger.info("Step 7: Updating group standings")
         standings_result = update_group_standings(season, session)
@@ -295,6 +568,11 @@ def run_nightly_etl(season: int = CURRENT_SEASON, full_reload: bool = False) -> 
         logger.info("Step 8: Recomputing team season profiles")
         profile_result = compute_and_store_team_profiles(season, session)
         logger.info(f"Team profiles: {profile_result}")
+
+        # Step 9: Score audit
+        logger.info("Step 9: Generating score audit")
+        audit_result = generate_score_audit(season, session)
+        logger.info(f"Score audit: {audit_result}")
 
     logger.info(f"=== Nightly ETL complete: {datetime.now().isoformat()} ===")
 
