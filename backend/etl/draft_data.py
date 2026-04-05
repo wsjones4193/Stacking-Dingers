@@ -50,6 +50,7 @@ COLUMN_ALIASES = {
     # player underdog ID
     "player_id": "underdog_player_id",
     "playerId": "underdog_player_id",
+    "underdog_player_id": "underdog_player_id",
 
     # player name
     "player_name": "player_name",

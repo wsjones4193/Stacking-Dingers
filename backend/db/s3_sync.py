@@ -34,7 +34,7 @@ def sync_data_from_s3() -> None:
         logger.warning("boto3 not installed — skipping S3 sync")
         return
 
-    region = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
+    region = os.environ.get("AWS_DEFAULT_REGION", "us-east-2")
     s3 = boto3.client("s3", region_name=region)
 
     data_dir = Path("data")
