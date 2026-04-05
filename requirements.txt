@@ -1,0 +1,27 @@
+# Web framework
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+
+# Database / ORM
+sqlmodel==0.0.19
+sqlalchemy==2.0.30
+
+# Data processing
+pandas==2.2.2
+duckdb==0.10.3
+pyarrow==16.1.0
+
+# MLB data
+mlb-statsapi==1.7.2
+
+# Fuzzy matching (player ID mapping)
+rapidfuzz==3.9.3
+
+# HTTP client (for Fangraphs projection downloads)
+httpx==0.27.0
+
+# Dev / testing
+pytest==8.2.2
+pytest-asyncio==0.23.7
+pytest-cov==5.0.0
+httpx  # also used by pytest for FastAPI test client

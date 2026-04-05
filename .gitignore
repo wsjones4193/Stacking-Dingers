@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+
+# Data files (large — served from S3 in prod)
+data/gamelogs/
+data/adp_history/
+data/bestball.db
+data/player_id_mapping.csv
+
+# Keep the data directory itself
+!data/.gitkeep
+!data/gamelogs/.gitkeep
+!data/adp_history/.gitkeep
+
+# Secrets / environment
+.env
+.env.*
+*.secret
+
+# Node / frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
