@@ -1,17 +1,18 @@
 /**
- * Left-side navigation sidebar. Fixed width, always visible on desktop,
- * collapsed to icons on narrower viewports.
+ * Left-side navigation sidebar with player name autocomplete search and
+ * username search for the Team Analyzer.
  */
+import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   BookOpen,
   LayoutDashboard,
+  List,
   Settings,
   TrendingUp,
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
 import { usePlayerSearch } from "@/hooks/usePlayerSearch";
 import type { PlayerSearchResult } from "@/types/api";
 
@@ -20,6 +21,7 @@ const NAV_ITEMS = [
   { to: "/teams", icon: Users, label: "Team Analyzer" },
   { to: "/adp", icon: TrendingUp, label: "ADP Explorer" },
   { to: "/history", icon: BookOpen, label: "History Browser" },
+  { to: "/leaderboard", icon: List, label: "Leaderboard" },
 ];
 
 function NavItem({ to, icon: Icon, label }: { to: string; icon: React.ElementType; label: string }) {
@@ -41,8 +43,8 @@ function NavItem({ to, icon: Icon, label }: { to: string; icon: React.ElementTyp
   );
 }
 
-/** Inline player autocomplete search in the sidebar header. */
-function SidebarSearch() {
+/** Player name autocomplete. */
+function PlayerSearch() {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -55,7 +57,7 @@ function SidebarSearch() {
   }
 
   return (
-    <div className="relative mb-4">
+    <div className="relative mb-2">
       <input
         className="w-full rounded-md border border-input bg-muted px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         placeholder="Search players…"
@@ -66,7 +68,7 @@ function SidebarSearch() {
         }}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
       />
-      {open && (query.length >= 2) && (
+      {open && query.length >= 2 && (
         <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-md border bg-popover shadow-lg">
           {loading && (
             <div className="px-3 py-2 text-xs text-muted-foreground">Searching…</div>
@@ -93,18 +95,44 @@ function SidebarSearch() {
   );
 }
 
+/** Username search → navigates to Team Analyzer pre-filled. */
+function UsernameSearch() {
+  const navigate = useNavigate();
+  const [username, setUsername] = useState("");
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = username.trim();
+    if (!trimmed) return;
+    setUsername("");
+    navigate(`/teams?username=${encodeURIComponent(trimmed)}`);
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="relative mb-4">
+      <input
+        className="w-full rounded-md border border-input bg-muted px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+        placeholder="Username → teams…"
+        value={username}
+        onChange={(e) => setUsername(e.target.value)}
+      />
+    </form>
+  );
+}
+
 export default function Sidebar() {
   return (
     <aside className="flex h-screen w-56 shrink-0 flex-col border-r border-border bg-card px-3 py-4">
       {/* Logo */}
-      <div className="mb-6 px-1">
+      <div className="mb-4 px-1">
         <span className="text-base font-bold tracking-tight text-foreground">
           ⚾ Stacking Dingers
         </span>
         <p className="mt-0.5 text-xs text-muted-foreground">MLB Best Ball Hub</p>
       </div>
 
-      <SidebarSearch />
+      <PlayerSearch />
+      <UsernameSearch />
 
       <nav className="flex flex-1 flex-col gap-1">
         {NAV_ITEMS.map((item) => (

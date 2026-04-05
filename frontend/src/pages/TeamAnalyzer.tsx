@@ -3,8 +3,8 @@
  *   1. /teams          → username search → paginated team card list
  *   2. /teams/:draftId → full team detail with roster, weekly breakdown, standings
  */
-import { useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   Bar,
   BarChart,
@@ -23,14 +23,95 @@ import { Badge } from "@/components/ui/badge";
 import FlagBadge from "@/components/FlagBadge";
 import DataAsOf from "@/components/DataAsOf";
 import LoadingSpinner from "@/components/LoadingSpinner";
-import { formatDate, formatScore } from "@/lib/utils";
-import type { RosterSlot, TeamSummary } from "@/types/api";
+import { flagLabel, formatDate, formatScore } from "@/lib/utils";
+import { getCurrentWeek, getWeeksRemainingInRound } from "@/lib/calendar";
+import type { RosterFlag, RosterSlot, TeamSummary } from "@/types/api";
+
+// ---------------------------------------------------------------------------
+// Flag matrix: position × flag-type count grid
+// ---------------------------------------------------------------------------
+
+const FLAG_TYPES = [
+  "position_wiped",
+  "ghost_player",
+  "below_replacement",
+  "pitcher_trending_wrong",
+  "hitter_usage_decline",
+];
+const POSITIONS = ["P", "IF", "OF"];
+
+function FlagMatrix({ flags }: { flags: RosterFlag[] }) {
+  if (flags.length === 0) return null;
+
+  // Build a position → flag_type → count matrix.
+  const matrix: Record<string, Record<string, number>> = {};
+  for (const pos of POSITIONS) {
+    matrix[pos] = {};
+  }
+  for (const f of flags) {
+    const pos = f.player_position ?? "?";
+    if (!POSITIONS.includes(pos)) continue;
+    matrix[pos][f.flag_type] = (matrix[pos][f.flag_type] ?? 0) + 1;
+  }
+
+  // Only render rows for flag types that appear at least once.
+  const activeTypes = FLAG_TYPES.filter((ft) =>
+    POSITIONS.some((pos) => (matrix[pos][ft] ?? 0) > 0)
+  );
+  if (activeTypes.length === 0) return null;
+
+  return (
+    <div className="mt-3 overflow-hidden rounded border border-border">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="border-b border-border bg-muted/30">
+            <th className="px-2 py-1 text-left font-medium text-muted-foreground">Flag</th>
+            {POSITIONS.map((pos) => (
+              <th key={pos} className="px-2 py-1 text-center font-medium text-muted-foreground">{pos}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {activeTypes.map((ft) => (
+            <tr key={ft} className="border-b border-border/50 last:border-0">
+              <td className="px-2 py-1 text-muted-foreground">{flagLabel(ft)}</td>
+              {POSITIONS.map((pos) => {
+                const count = matrix[pos][ft] ?? 0;
+                return (
+                  <td key={pos} className="px-2 py-1 text-center">
+                    {count > 0 ? (
+                      <span className={`font-semibold ${ft === "position_wiped" ? "text-red-400" : ft === "ghost_player" ? "text-orange-400" : "text-yellow-400"}`}>
+                        {count}
+                      </span>
+                    ) : null}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Weeks remaining helper
+// ---------------------------------------------------------------------------
+
+function getWeeksRemaining(): number {
+  const current = getCurrentWeek();
+  if (!current) return 0;
+  return getWeeksRemainingInRound(current.week);
+}
 
 // ---------------------------------------------------------------------------
 // Team list (search view)
 // ---------------------------------------------------------------------------
 
 function TeamCard({ team }: { team: TeamSummary }) {
+  const weeksRemaining = getWeeksRemaining();
+
   return (
     <Link to={`/teams/${team.draft_id}`}>
       <Card className="transition-colors hover:border-primary/40 hover:bg-accent/30">
@@ -51,27 +132,36 @@ function TeamCard({ team }: { team: TeamSummary }) {
             </div>
           </div>
 
-          {/* Gap to advance */}
+          {/* Roster strength */}
+          {team.roster_strength_score != null && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Roster strength:{" "}
+              <span className="font-medium text-foreground">{team.roster_strength_score.toFixed(0)}/100</span>
+            </p>
+          )}
+
+          {/* Advancement probability + gap */}
+          {team.advancement_probability != null && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Advance probability:{" "}
+              <span className="font-medium text-foreground">
+                {(team.advancement_probability * 100).toFixed(0)}%
+              </span>
+            </p>
+          )}
           {team.gap_to_advance != null && team.gap_to_advance > 0 && (
-            <p className="mt-2 text-xs text-muted-foreground">
-              Gap to advance: <span className="font-medium text-foreground">{formatScore(team.gap_to_advance)} pts</span>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Need{" "}
+              <span className="font-medium text-foreground">{formatScore(team.gap_to_advance)} pts</span>
+              {weeksRemaining > 0 && ` · ${weeksRemaining} wk${weeksRemaining !== 1 ? "s" : ""} left`}
             </p>
           )}
           {team.gap_to_advance != null && team.gap_to_advance <= 0 && (
-            <p className="mt-2 text-xs text-primary font-medium">Currently advancing ✓</p>
+            <p className="mt-1 text-xs text-primary font-medium">Currently advancing ✓</p>
           )}
 
-          {/* Roster flags */}
-          {team.roster_flags.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1">
-              {team.roster_flags.slice(0, 4).map((f, i) => (
-                <FlagBadge key={i} flag={f} />
-              ))}
-              {team.roster_flags.length > 4 && (
-                <span className="text-xs text-muted-foreground">+{team.roster_flags.length - 4} more</span>
-              )}
-            </div>
-          )}
+          {/* Flag matrix (position × flag type) */}
+          <FlagMatrix flags={team.roster_flags} />
         </CardContent>
       </Card>
     </Link>
@@ -79,10 +169,22 @@ function TeamCard({ team }: { team: TeamSummary }) {
 }
 
 function TeamList() {
-  const [username, setUsername] = useState("");
-  const [submittedUsername, setSubmittedUsername] = useState("");
+  const [searchParams] = useSearchParams();
+  const urlUsername = searchParams.get("username") ?? "";
+  const [username, setUsername] = useState(urlUsername);
+  const [submittedUsername, setSubmittedUsername] = useState(urlUsername);
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
+
+  // If the URL username param changes (sidebar search), re-submit.
+  useEffect(() => {
+    if (urlUsername && urlUsername !== submittedUsername) {
+      setUsername(urlUsername);
+      setSubmittedUsername(urlUsername);
+      setPage(1);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlUsername]);
 
   const { data, loading, error } = useTeamSearch(submittedUsername, { page, page_size: PAGE_SIZE });
 

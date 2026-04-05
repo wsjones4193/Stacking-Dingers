@@ -3,7 +3,7 @@
  * Routing: /history (dashboard) and /history/:moduleId (module detail).
  */
 import { useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   Bar,
   BarChart,
@@ -197,7 +197,11 @@ function CeilingModule({ season }: { season: number }) {
 // Module 2: Stacking
 // ---------------------------------------------------------------------------
 
+type StackType = "hitter" | "pitcher" | "combined";
+
 function StackingModule({ season }: { season: number }) {
+  const [stackType, setStackType] = useState<StackType>("hitter");
+  const [minStackSize, setMinStackSize] = useState(2);
   const { data, loading, error } = useStackData({ season });
   if (loading) return <LoadingSpinner />;
   if (error) return <p className="text-destructive text-sm">{error}</p>;
@@ -205,9 +209,50 @@ function StackingModule({ season }: { season: number }) {
 
   const { mlb_team_stacks, positional_stacks } = data.data;
 
+  // Filter team stacks by stack size.
+  const filteredTeamStacks = mlb_team_stacks.filter(
+    (s) => s.stack_size >= minStackSize
+  );
+
   return (
     <div className="space-y-4">
       <SampleSizeWarning sampleSize={data.sample_size} show={data.low_confidence} />
+
+      {/* Stack type + size controls */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex gap-1 text-xs">
+          {(["hitter", "pitcher", "combined"] as StackType[]).map((t) => (
+            <button
+              key={t}
+              onClick={() => setStackType(t)}
+              className={`rounded px-3 py-1.5 font-medium transition-colors capitalize border ${
+                stackType === t
+                  ? "border-primary bg-primary/15 text-primary"
+                  : "border-border text-muted-foreground hover:bg-accent"
+              }`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span>Min stack size:</span>
+          {[2, 3, 4, 5].map((n) => (
+            <button
+              key={n}
+              onClick={() => setMinStackSize(n)}
+              className={`h-6 w-6 rounded font-medium transition-colors ${
+                minStackSize === n
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground hover:bg-accent"
+              }`}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <Tabs defaultValue="team">
         <TabsList>
           <TabsTrigger value="team">MLB Team Stacks</TabsTrigger>
@@ -226,7 +271,7 @@ function StackingModule({ season }: { season: number }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {mlb_team_stacks.sort((a, b) => b.avg_advance_rate - a.avg_advance_rate).map((s) => (
+                  {filteredTeamStacks.sort((a, b) => b.avg_advance_rate - a.avg_advance_rate).map((s) => (
                     <tr key={s.mlb_team} className="border-b border-border/50">
                       <td className="py-1.5 font-medium">{s.mlb_team}</td>
                       <td className="py-1.5 text-right">{s.stack_size}</td>
@@ -236,8 +281,8 @@ function StackingModule({ season }: { season: number }) {
                   ))}
                 </tbody>
               </table>
-              {mlb_team_stacks.length === 0 && (
-                <p className="py-6 text-center text-sm text-muted-foreground">No data.</p>
+              {filteredTeamStacks.length === 0 && (
+                <p className="py-6 text-center text-sm text-muted-foreground">No data for stack size ≥ {minStackSize}.</p>
               )}
             </CardContent>
           </Card>
@@ -509,7 +554,21 @@ function ModuleView({ moduleId, season }: { moduleId: string; season: number }) 
           <p className="text-sm text-muted-foreground">{meta.description}</p>
         </div>
       )}
-      {Component ? (
+      {moduleId === "player-history" ? (
+        <Card>
+          <CardContent className="py-8">
+            <p className="text-sm text-muted-foreground mb-4">
+              Player historical profiles live on each player's page. Use the sidebar search to look up a player, then open the <strong>Historical</strong> tab.
+            </p>
+            <Link
+              to="/players"
+              className="text-sm text-primary underline hover:no-underline"
+            >
+              Search for a player →
+            </Link>
+          </CardContent>
+        </Card>
+      ) : Component ? (
         <Component season={season} />
       ) : (
         <Card>
@@ -528,7 +587,19 @@ function ModuleView({ moduleId, season }: { moduleId: string; season: number }) 
 
 export default function HistoryBrowser() {
   const { moduleId } = useParams<{ moduleId?: string }>();
-  const [season, setSeason] = useState(2025);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const seasonParam = searchParams.get("season");
+  const [season, _setSeason] = useState(seasonParam ? Number(seasonParam) : 2025);
+
+  function setSeason(s: number) {
+    _setSeason(s);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("season", String(s));
+      return next;
+    }, { replace: true });
+  }
 
   return moduleId ? (
     <ModuleView moduleId={moduleId} season={season} />

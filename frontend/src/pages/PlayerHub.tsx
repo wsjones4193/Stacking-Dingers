@@ -12,8 +12,10 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   Line,
   LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -32,11 +34,18 @@ import SampleSizeWarning from "@/components/SampleSizeWarning";
 import { formatPct, formatScore } from "@/lib/utils";
 
 const OPENING_DAY = new Date("2026-03-25");
-const isInSeason = new Date() >= OPENING_DAY;
 
 const SEASONS = [2026, 2025, 2024, 2023, 2022];
 
 type ScoreView = "game" | "weekly" | "cumulative";
+type HubMode = "in-season" | "draft";
+
+// Round transition reference lines for Recharts — weeks 18, 20, 22 mark R1/R2/R3 ends.
+const ROUND_TRANSITIONS = [
+  { week: "Wk 18", label: "R1 end" },
+  { week: "Wk 20", label: "R2 end" },
+  { week: "Wk 22", label: "R3 end" },
+];
 
 export default function PlayerHub() {
   const { playerId } = useParams<{ playerId: string }>();
@@ -44,6 +53,9 @@ export default function PlayerHub() {
   const [proj, setProj] = useProjectionPreference();
   const [season, setSeason] = useState(2026);
   const [scoreView, setScoreView] = useState<ScoreView>("game");
+  const [hubMode, setHubMode] = useState<HubMode>(
+    new Date() >= OPENING_DAY ? "in-season" : "draft"
+  );
 
   const numericId = playerId ? parseInt(playerId, 10) : null;
   const { data, loading, error } = usePlayer(numericId, season, proj);
@@ -125,6 +137,30 @@ export default function PlayerHub() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Mode toggle */}
+          <div className="flex rounded-md border border-border overflow-hidden text-xs">
+            <button
+              onClick={() => setHubMode("in-season")}
+              className={`px-3 py-1.5 font-medium transition-colors ${
+                hubMode === "in-season"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-accent"
+              }`}
+            >
+              In-Season
+            </button>
+            <button
+              onClick={() => setHubMode("draft")}
+              className={`px-3 py-1.5 font-medium transition-colors ${
+                hubMode === "draft"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-accent"
+              }`}
+            >
+              Draft Season
+            </button>
+          </div>
+
           {/* Season selector */}
           <Select value={String(season)} onValueChange={(v) => setSeason(Number(v))}>
             <SelectTrigger className="w-24">
@@ -172,17 +208,76 @@ export default function PlayerHub() {
       </div>
 
       {/* ── Main tabs ──────────────────────────────────────────── */}
-      <Tabs defaultValue={isInSeason ? "scoring" : "projections"}>
+      <Tabs defaultValue={hubMode === "in-season" ? "scoring" : "adp"}>
         <TabsList>
-          {isInSeason && <TabsTrigger value="scoring">Scoring</TabsTrigger>}
+          {hubMode === "in-season" && <TabsTrigger value="scoring">Scoring</TabsTrigger>}
+          {hubMode === "draft" && <TabsTrigger value="draft-profile">Draft Profile</TabsTrigger>}
           <TabsTrigger value="adp">ADP Trend</TabsTrigger>
           <TabsTrigger value="value">Value vs ADP</TabsTrigger>
           <TabsTrigger value="ownership">Ownership</TabsTrigger>
           <TabsTrigger value="history">Historical</TabsTrigger>
         </TabsList>
 
+        {/* ── Draft Season profile ───────────────────────────── */}
+        {hubMode === "draft" && (
+          <TabsContent value="draft-profile">
+            <div className="grid grid-cols-2 gap-4">
+              <Card>
+                <CardHeader><CardTitle>Draft Profile</CardTitle></CardHeader>
+                <CardContent className="space-y-3">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Positional rank by ADP</p>
+                    <p className="font-semibold">{player.peer_group ?? "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Current ADP</p>
+                    <p className="font-semibold">{player.current_adp?.toFixed(1) ?? "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Projected draft rate ({proj})</p>
+                    <p className="font-semibold">{formatPct(player.current_draft_rate)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Projected points ({proj})</p>
+                    <p className="font-semibold">{formatScore(player.projected_points)}</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader><CardTitle>Historical Performance</CardTitle></CardHeader>
+                <CardContent>
+                  {(histData?.data ?? []).length === 0 ? (
+                    <p className="py-4 text-center text-sm text-muted-foreground">No prior season data.</p>
+                  ) : (
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                          <th className="pb-2">Season</th>
+                          <th className="pb-2 text-right">BPCOR</th>
+                          <th className="pb-2 text-right">ADP</th>
+                          <th className="pb-2 text-right">Owned</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(histData?.data ?? []).map((row) => (
+                          <tr key={row.season} className="border-b border-border/50">
+                            <td className="py-1.5">{row.season}</td>
+                            <td className="py-1.5 text-right">{formatScore(row.bpcor)}</td>
+                            <td className="py-1.5 text-right">{row.adp?.toFixed(1) ?? "—"}</td>
+                            <td className="py-1.5 text-right">{formatPct(row.ownership_pct)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+        )}
+
         {/* ── Scoring trajectory ─────────────────────────────── */}
-        {isInSeason && (
+        {hubMode === "in-season" && (
           <TabsContent value="scoring">
             <Card>
               <CardHeader className="flex-row items-center justify-between space-y-0">
@@ -211,12 +306,32 @@ export default function PlayerHub() {
                       <XAxis dataKey="week" tick={{ fontSize: 11 }} />
                       <YAxis tick={{ fontSize: 11 }} />
                       <Tooltip />
+                      {/* Round transition markers */}
+                      {ROUND_TRANSITIONS.map((rt) => (
+                        <ReferenceLine
+                          key={rt.week}
+                          x={rt.week}
+                          stroke="hsl(215 20% 35%)"
+                          strokeDasharray="4 4"
+                          label={{ value: rt.label, fontSize: 9, fill: "hsl(215 20% 55%)" }}
+                        />
+                      ))}
                       <Bar
                         dataKey="score"
-                        fill="hsl(160 60% 45%)"
                         radius={[3, 3, 0, 0]}
                         name="Best Ball Score"
-                      />
+                      >
+                        {weeklyChartData.map((entry, index) => (
+                          <Cell
+                            key={index}
+                            fill={
+                              entry.slot === "bench"
+                                ? "hsl(215 20% 35%)"
+                                : "hsl(160 60% 45%)"
+                            }
+                          />
+                        ))}
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
@@ -230,7 +345,24 @@ export default function PlayerHub() {
                         type="monotone"
                         dataKey={scoreView === "cumulative" ? "cumulative" : "score"}
                         stroke="hsl(160 60% 45%)"
-                        dot={false}
+                        dot={(props) => {
+                          // Hot games get an orange dot; cold games get a muted dot.
+                          const entry = gameChartData[props.index];
+                          if (!entry) return <circle key={props.index} />;
+                          const fill = entry.hot
+                            ? "hsl(38 92% 50%)"
+                            : "hsl(215 20% 45%)";
+                          return (
+                            <circle
+                              key={props.index}
+                              cx={props.cx}
+                              cy={props.cy}
+                              r={3}
+                              fill={fill}
+                              stroke="none"
+                            />
+                          );
+                        }}
                         strokeWidth={2}
                         name={scoreView === "cumulative" ? "Cumulative" : "Score"}
                       />

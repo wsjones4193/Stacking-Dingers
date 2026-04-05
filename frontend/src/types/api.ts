@@ -78,6 +78,7 @@ export interface RosterFlag {
   flag_reason: string;
   player_id: number | null;
   player_name: string | null;
+  player_position: string | null;
   week_number: number;
 }
 

@@ -1,8 +1,9 @@
 /**
- * ADP Explorer — three tabs:
+ * ADP Explorer — four tabs:
  *   1. Scatter plot: ADP rank vs. BPCOR rank
  *   2. ADP movement: per-player ADP trend lines
  *   3. Positional scarcity: cumulative draft % by pick number
+ *   4. Tournament BPCOR leaderboard: most valuable players by avg BPCOR per roster
  */
 import { useState } from "react";
 import {
@@ -17,15 +18,18 @@ import {
   YAxis,
   ZAxis,
 } from "recharts";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from "lucide-react";
 import { useAdpMovement, useAdpScarcity, useAdpScatter } from "@/hooks/useAdp";
+import { useAdpAccuracyData } from "@/hooks/useHistory";
 import { useProjectionPreference } from "@/hooks/useProjectionPreference";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import DataAsOf from "@/components/DataAsOf";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import SampleSizeWarning from "@/components/SampleSizeWarning";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 const SEASONS = [2026, 2025, 2024, 2023, 2022];
 const POSITIONS = ["All", "P", "IF", "OF"];
@@ -289,20 +293,164 @@ function ScarcityTab({ season }: { season: number }) {
 }
 
 // ---------------------------------------------------------------------------
+// Tab 4: Tournament Average BPCOR (most valuable players)
+// ---------------------------------------------------------------------------
+
+type BpcorSortKey = "actual_bpcor" | "value_delta" | "adp";
+type BpcorSortDir = "asc" | "desc";
+
+function BpcorLeaderboardTab({ season, position }: { season: number; position: string }) {
+  const [sortBy, setSortBy] = useState<BpcorSortKey>("actual_bpcor");
+  const [sortDir, setSortDir] = useState<BpcorSortDir>("desc");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 30;
+
+  const { data, loading, error } = useAdpAccuracyData({
+    season,
+    position: position === "All" ? undefined : position,
+  });
+
+  function toggleSort(col: BpcorSortKey) {
+    if (sortBy === col) {
+      setSortDir((d) => (d === "desc" ? "asc" : "desc"));
+    } else {
+      setSortBy(col);
+      setSortDir("desc");
+    }
+    setPage(1);
+  }
+
+  function SortIcon({ col }: { col: BpcorSortKey }) {
+    if (sortBy !== col) return <ChevronDown className="ml-1 h-3 w-3 opacity-30 inline" />;
+    return sortDir === "desc" ? (
+      <ChevronDown className="ml-1 h-3 w-3 text-primary inline" />
+    ) : (
+      <ChevronUp className="ml-1 h-3 w-3 text-primary inline" />
+    );
+  }
+
+  if (loading) return <LoadingSpinner />;
+  if (error) return <p className="py-8 text-center text-sm text-destructive">{error}</p>;
+  if (!data) return null;
+
+  const sorted = [...data.data].sort((a, b) => {
+    const valA = a[sortBy] ?? 0;
+    const valB = b[sortBy] ?? 0;
+    return sortDir === "desc" ? (valB as number) - (valA as number) : (valA as number) - (valB as number);
+  });
+
+  const paginated = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
+
+  return (
+    <div className="space-y-4">
+      <SampleSizeWarning sampleSize={data.sample_size} show={data.low_confidence} />
+      <p className="text-xs text-muted-foreground">
+        Tournament-average BPCOR ranks all drafted players by their average contribution above
+        replacement level across every roster that drafted them — the definitive "most valuable
+        players" list for a given season.
+      </p>
+      <Card>
+        <CardContent className="pt-4">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                <th className="pb-2 w-8">#</th>
+                <th className="pb-2">Player</th>
+                <th className="pb-2">Pos</th>
+                <th
+                  className="pb-2 text-right cursor-pointer hover:text-foreground select-none"
+                  onClick={() => toggleSort("adp")}
+                >
+                  ADP<SortIcon col="adp" />
+                </th>
+                <th
+                  className="pb-2 text-right cursor-pointer hover:text-foreground select-none"
+                  onClick={() => toggleSort("actual_bpcor")}
+                >
+                  Avg BPCOR<SortIcon col="actual_bpcor" />
+                </th>
+                <th className="pb-2 text-right">Projected</th>
+                <th
+                  className="pb-2 text-right cursor-pointer hover:text-foreground select-none"
+                  onClick={() => toggleSort("value_delta")}
+                >
+                  Value Δ<SortIcon col="value_delta" />
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginated.map((p, i) => {
+                const rank = (page - 1) * PAGE_SIZE + i + 1;
+                return (
+                  <tr key={p.player_id} className="border-b border-border/50 hover:bg-accent/20">
+                    <td className="py-1.5 text-xs text-muted-foreground">{rank}</td>
+                    <td className="py-1.5 font-medium">
+                      <Link to={`/players/${p.player_id}`} className="hover:text-primary hover:underline">
+                        {p.name}
+                      </Link>
+                    </td>
+                    <td className="py-1.5 text-muted-foreground">{p.position}</td>
+                    <td className="py-1.5 text-right">{p.adp?.toFixed(1) ?? "—"}</td>
+                    <td className="py-1.5 text-right font-semibold">{p.actual_bpcor.toFixed(1)}</td>
+                    <td className="py-1.5 text-right text-muted-foreground">{p.projected_points.toFixed(1)}</td>
+                    <td className={`py-1.5 text-right font-medium ${p.value_delta >= 0 ? "text-primary" : "text-destructive"}`}>
+                      {p.value_delta >= 0 ? "+" : ""}{p.value_delta.toFixed(1)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {paginated.length === 0 && (
+            <p className="py-8 text-center text-sm text-muted-foreground">No data for selected filters.</p>
+          )}
+        </CardContent>
+      </Card>
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2">
+          <Button variant="outline" size="icon" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <span className="text-sm text-muted-foreground">Page {page} of {totalPages}</span>
+          <Button variant="outline" size="icon" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+      <DataAsOf dataAsOf={data.data_as_of} />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
 export default function ADPExplorer() {
   const [proj, setProj] = useProjectionPreference();
-  const [season, setSeason] = useState(2026);
-  const [position, setPosition] = useState("All");
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const [season, _setSeason] = useState(
+    searchParams.get("season") ? Number(searchParams.get("season")) : 2026
+  );
+  const [position, _setPosition] = useState(searchParams.get("position") ?? "All");
+
+  function setSeason(s: number) {
+    _setSeason(s);
+    setSearchParams((prev) => { const n = new URLSearchParams(prev); n.set("season", String(s)); return n; }, { replace: true });
+  }
+  function setPosition(p: string) {
+    _setPosition(p);
+    setSearchParams((prev) => { const n = new URLSearchParams(prev); n.set("position", p); return n; }, { replace: true });
+  }
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold">ADP Explorer</h1>
-          <p className="text-sm text-muted-foreground">Analyze draft value, movement, and positional scarcity.</p>
+          <p className="text-sm text-muted-foreground">Analyze draft value, movement, positional scarcity, and tournament BPCOR.</p>
         </div>
         <div className="flex items-center gap-2">
           <Select value={String(season)} onValueChange={(v) => setSeason(Number(v))}>
@@ -339,6 +487,7 @@ export default function ADPExplorer() {
           <TabsTrigger value="scatter">Value Scatter</TabsTrigger>
           <TabsTrigger value="movement">ADP Movement</TabsTrigger>
           <TabsTrigger value="scarcity">Positional Scarcity</TabsTrigger>
+          <TabsTrigger value="bpcor">Tournament BPCOR</TabsTrigger>
         </TabsList>
         <TabsContent value="scatter">
           <ScatterTab season={season} position={position} proj={proj} />
@@ -348,6 +497,9 @@ export default function ADPExplorer() {
         </TabsContent>
         <TabsContent value="scarcity">
           <ScarcityTab season={season} />
+        </TabsContent>
+        <TabsContent value="bpcor">
+          <BpcorLeaderboardTab season={season} position={position} />
         </TabsContent>
       </Tabs>
     </div>

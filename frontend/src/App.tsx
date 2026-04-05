@@ -4,6 +4,7 @@ import PlayerHub from "@/pages/PlayerHub";
 import TeamAnalyzer from "@/pages/TeamAnalyzer";
 import ADPExplorer from "@/pages/ADPExplorer";
 import HistoryBrowser from "@/pages/HistoryBrowser";
+import Leaderboard from "@/pages/Leaderboard";
 import Admin from "@/pages/Admin";
 
 export default function App() {
@@ -18,6 +19,7 @@ export default function App() {
         <Route path="/adp" element={<ADPExplorer />} />
         <Route path="/history" element={<HistoryBrowser />} />
         <Route path="/history/:moduleId" element={<HistoryBrowser />} />
+        <Route path="/leaderboard" element={<Leaderboard />} />
         <Route path="/admin/*" element={<Admin />} />
       </Routes>
     </Layout>
