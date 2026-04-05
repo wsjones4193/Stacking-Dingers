@@ -93,9 +93,12 @@ def fetch_player_gamelogs(
         stats = people[0].get("stats", [])
         games = []
         for stat_group in stats:
+            group_meta = stat_group.get("group", {})
             splits = stat_group.get("splits", [])
             for split in splits:
-                games.append(split)
+                enriched = dict(split)
+                enriched["group"] = group_meta
+                games.append(enriched)
         return games
     except Exception as e:
         logger.warning(f"Failed to fetch gamelogs for mlb_id={mlb_id}: {e}")
