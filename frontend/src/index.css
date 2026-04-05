@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 222 28% 8%;
+    --foreground: 210 40% 92%;
+    --card: 222 28% 11%;
+    --card-foreground: 210 40% 92%;
+    --popover: 222 28% 9%;
+    --popover-foreground: 210 40% 92%;
+    --primary: 160 60% 45%;
+    --primary-foreground: 222 28% 8%;
+    --secondary: 222 28% 17%;
+    --secondary-foreground: 210 40% 92%;
+    --muted: 222 28% 16%;
+    --muted-foreground: 215 20% 55%;
+    --accent: 222 28% 18%;
+    --accent-foreground: 210 40% 92%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 222 28% 18%;
+    --input: 222 28% 16%;
+    --ring: 160 60% 45%;
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-background;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-muted rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/30;
+  }
+}
+
+/* Recharts dark theme overrides */
+.recharts-cartesian-axis-tick-value {
+  fill: hsl(215 20% 55%);
+  font-size: 11px;
+}
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: hsl(222 28% 18%);
+}
+.recharts-tooltip-wrapper .recharts-default-tooltip {
+  background-color: hsl(222 28% 13%) !important;
+  border: 1px solid hsl(222 28% 22%) !important;
+  border-radius: 6px !important;
+}
+.recharts-tooltip-label {
+  color: hsl(210 40% 92%) !important;
+}
+.recharts-tooltip-item {
+  color: hsl(215 20% 72%) !important;
+}

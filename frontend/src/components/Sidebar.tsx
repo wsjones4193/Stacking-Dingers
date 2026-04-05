@@ -1,0 +1,133 @@
+/**
+ * Left-side navigation sidebar. Fixed width, always visible on desktop,
+ * collapsed to icons on narrower viewports.
+ */
+import { NavLink, useNavigate } from "react-router-dom";
+import {
+  BookOpen,
+  LayoutDashboard,
+  Settings,
+  TrendingUp,
+  Users,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useState } from "react";
+import { usePlayerSearch } from "@/hooks/usePlayerSearch";
+import type { PlayerSearchResult } from "@/types/api";
+
+const NAV_ITEMS = [
+  { to: "/players", icon: LayoutDashboard, label: "Player Hub" },
+  { to: "/teams", icon: Users, label: "Team Analyzer" },
+  { to: "/adp", icon: TrendingUp, label: "ADP Explorer" },
+  { to: "/history", icon: BookOpen, label: "History Browser" },
+];
+
+function NavItem({ to, icon: Icon, label }: { to: string; icon: React.ElementType; label: string }) {
+  return (
+    <NavLink
+      to={to}
+      className={({ isActive }) =>
+        cn(
+          "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+          isActive
+            ? "bg-primary/15 text-primary"
+            : "text-muted-foreground hover:bg-accent hover:text-foreground"
+        )
+      }
+    >
+      <Icon className="h-4 w-4 shrink-0" />
+      <span>{label}</span>
+    </NavLink>
+  );
+}
+
+/** Inline player autocomplete search in the sidebar header. */
+function SidebarSearch() {
+  const navigate = useNavigate();
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const { results, loading } = usePlayerSearch(query);
+
+  function select(player: PlayerSearchResult) {
+    setQuery("");
+    setOpen(false);
+    navigate(`/players/${player.player_id}`);
+  }
+
+  return (
+    <div className="relative mb-4">
+      <input
+        className="w-full rounded-md border border-input bg-muted px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+        placeholder="Search players…"
+        value={query}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setOpen(true);
+        }}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+      />
+      {open && (query.length >= 2) && (
+        <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-md border bg-popover shadow-lg">
+          {loading && (
+            <div className="px-3 py-2 text-xs text-muted-foreground">Searching…</div>
+          )}
+          {!loading && results.length === 0 && (
+            <div className="px-3 py-2 text-xs text-muted-foreground">No results</div>
+          )}
+          {results.map((p) => (
+            <button
+              key={p.player_id}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent"
+              onMouseDown={() => select(p)}
+            >
+              <span className="font-medium">{p.name}</span>
+              <span className="text-xs text-muted-foreground">{p.position}</span>
+              {p.mlb_team && (
+                <span className="ml-auto text-xs text-muted-foreground">{p.mlb_team}</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function Sidebar() {
+  return (
+    <aside className="flex h-screen w-56 shrink-0 flex-col border-r border-border bg-card px-3 py-4">
+      {/* Logo */}
+      <div className="mb-6 px-1">
+        <span className="text-base font-bold tracking-tight text-foreground">
+          ⚾ Stacking Dingers
+        </span>
+        <p className="mt-0.5 text-xs text-muted-foreground">MLB Best Ball Hub</p>
+      </div>
+
+      <SidebarSearch />
+
+      <nav className="flex flex-1 flex-col gap-1">
+        {NAV_ITEMS.map((item) => (
+          <NavItem key={item.to} {...item} />
+        ))}
+      </nav>
+
+      <div className="mt-auto border-t border-border pt-3">
+        <NavLink
+          to="/admin"
+          className={({ isActive }) =>
+            cn(
+              "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+              isActive
+                ? "bg-primary/15 text-primary"
+                : "text-muted-foreground hover:bg-accent hover:text-foreground"
+            )
+          }
+        >
+          <Settings className="h-4 w-4 shrink-0" />
+          <span>Admin</span>
+        </NavLink>
+      </div>
+    </aside>
+  );
+}
