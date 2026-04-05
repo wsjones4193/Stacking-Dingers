@@ -7,17 +7,32 @@ Run locally: uvicorn backend.main:app --reload
 
 from __future__ import annotations
 
+import logging
+import os
+from contextlib import asynccontextmanager
 from datetime import date
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from backend.db.s3_sync import sync_data_from_s3
 from backend.routers import admin, adp, history, leaderboard, players, teams
+
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Pull data from S3 on startup when running in production."""
+    sync_data_from_s3()
+    yield
+
 
 app = FastAPI(
     title="MLB Best Ball Hub API",
     description="Data API for The Dinger — Underdog Fantasy MLB best ball tournament",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # ---------------------------------------------------------------------------
