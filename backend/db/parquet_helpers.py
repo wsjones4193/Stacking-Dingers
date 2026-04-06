@@ -64,7 +64,8 @@ def load_gamelogs_week(season: int, week_start: str, week_end: str) -> pd.DataFr
 def append_gamelogs(season: int, new_rows: pd.DataFrame) -> None:
     """
     Append new game log rows to the season Parquet file.
-    Deduplicates on (player_id, game_date) before writing.
+    Deduplicates on (mlb_id, game_date, stat_type) if those columns exist,
+    otherwise falls back to (player_id, game_date) for legacy compatibility.
     """
     path = gamelog_path(season)
     GAMELOGS_DIR.mkdir(parents=True, exist_ok=True)
@@ -75,9 +76,35 @@ def append_gamelogs(season: int, new_rows: pd.DataFrame) -> None:
     else:
         combined = new_rows.copy()
 
-    combined = combined.drop_duplicates(subset=["player_id", "game_date"], keep="last")
-    combined = combined.sort_values(["player_id", "game_date"]).reset_index(drop=True)
+    if "mlb_id" in combined.columns and "stat_type" in combined.columns:
+        dedup_keys = ["mlb_id", "game_date", "stat_type"]
+    else:
+        dedup_keys = ["player_id", "game_date"]
+
+    combined = combined.drop_duplicates(subset=dedup_keys, keep="last")
+    combined = combined.sort_values(dedup_keys[:2]).reset_index(drop=True)
     combined.to_parquet(path, index=False)
+
+
+def load_gamelogs_for_mlb_id(season: int, mlb_id: int) -> pd.DataFrame:
+    """Load game logs for a single player by mlb_id."""
+    path = gamelog_path(season)
+    if not path.exists():
+        return pd.DataFrame()
+    return duckdb.query(
+        f"SELECT * FROM read_parquet('{path}') WHERE mlb_id = {mlb_id}"
+    ).df()
+
+
+def load_gamelogs_by_mlb_ids(season: int, mlb_ids: list[int]) -> pd.DataFrame:
+    """Load game logs for a list of mlb_ids."""
+    path = gamelog_path(season)
+    if not path.exists():
+        return pd.DataFrame()
+    ids = ", ".join(str(i) for i in mlb_ids)
+    return duckdb.query(
+        f"SELECT * FROM read_parquet('{path}') WHERE mlb_id IN ({ids})"
+    ).df()
 
 
 def get_last_gamelog_date(season: int) -> Optional[str]:
