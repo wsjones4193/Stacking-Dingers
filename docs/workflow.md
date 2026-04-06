@@ -72,9 +72,9 @@ git push origin feature/<feature-name>
 <type>(<scope>): <short summary>
 
 <body — optional, explains the why>
-
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
 ```
+
+**Note:** Do NOT add `Co-Authored-By` trailers to commits. This repo is private and Vercel Hobby plan blocks deployments from commits it cannot associate with a single GitHub user.
 
 **Types:** `feat` `fix` `refactor` `test` `docs` `chore`  
 **Scope:** the module or area affected, e.g. `bpcor`, `adp-router`, `nightly-etl`
