@@ -1,18 +1,38 @@
 /**
- * Admin page — two sections:
+ * Admin page — four sections:
  *   /admin/player-mapping  → confirm/edit player ID mappings
  *   /admin/score-audit     → view score discrepancies
+ *   /admin/articles        → create/edit/delete articles
+ *   /admin/podcasts        → sync + delete podcast episodes
  */
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { NavLink, Route, Routes } from "react-router-dom";
-import { AlertCircle, Check, X } from "lucide-react";
-import { confirmMapping, getPlayerMappings, getScoreAudit } from "@/lib/api";
+import { AlertCircle, Check, Plus, RefreshCw, Trash2, X } from "lucide-react";
+import {
+  adminCreateArticle,
+  adminDeleteArticle,
+  adminDeleteEpisode,
+  adminListArticles,
+  adminSyncPodcasts,
+  adminUpdateArticle,
+  confirmMapping,
+  getPlayerMappings,
+  getPodcasts,
+  getScoreAudit,
+} from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import LoadingSpinner from "@/components/LoadingSpinner";
-import type { PlayerMapping, ScoreAuditEntry } from "@/types/api";
+import type { PlayerMapping, PodcastEpisode, ScoreAuditEntry } from "@/types/api";
+import { useEditor, EditorContent } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import { Image } from "@tiptap/extension-image";
+import { Table } from "@tiptap/extension-table";
+import { TableRow } from "@tiptap/extension-table-row";
+import { TableCell } from "@tiptap/extension-table-cell";
+import { TableHeader } from "@tiptap/extension-table-header";
 
 const SEASONS = [2026, 2025, 2024, 2023, 2022];
 
@@ -266,6 +286,461 @@ function ScoreAuditPage() {
 }
 
 // ---------------------------------------------------------------------------
+// Articles admin
+// ---------------------------------------------------------------------------
+
+type ArticleRow = {
+  article_id: number;
+  title: string;
+  author: string;
+  published_date: string;
+  slug: string;
+  updated_at: string;
+};
+
+type ArticleFormData = {
+  title: string;
+  author: string;
+  published_date: string;
+  excerpt: string;
+  thumbnail_url: string;
+  slug: string;
+};
+
+const EMPTY_FORM: ArticleFormData = {
+  title: "",
+  author: "",
+  published_date: new Date().toISOString().slice(0, 10),
+  excerpt: "",
+  thumbnail_url: "",
+  slug: "",
+};
+
+function slugify(str: string) {
+  return str
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function ArticleEditor({
+  initialHtml,
+  onChange,
+}: {
+  initialHtml: string;
+  onChange: (html: string) => void;
+}) {
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      Image,
+      Table.configure({ resizable: true }),
+      TableRow,
+      TableHeader,
+      TableCell,
+    ],
+    content: initialHtml,
+    onUpdate: ({ editor }) => onChange(editor.getHTML()),
+  });
+
+  // Toolbar helper
+  const btn = (label: string, action: () => void, active?: boolean) => (
+    <button
+      type="button"
+      onMouseDown={(e) => { e.preventDefault(); action(); }}
+      className={`px-2 py-0.5 rounded text-xs border ${active ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-accent"}`}
+    >
+      {label}
+    </button>
+  );
+
+  if (!editor) return null;
+
+  const addImage = () => {
+    const url = window.prompt("Image URL");
+    if (url) editor.chain().focus().setImage({ src: url }).run();
+  };
+
+  return (
+    <div className="border border-border rounded-md overflow-hidden">
+      {/* Toolbar */}
+      <div className="flex flex-wrap gap-1 p-2 border-b border-border bg-muted/40">
+        {btn("B", () => editor.chain().focus().toggleBold().run(), editor.isActive("bold"))}
+        {btn("I", () => editor.chain().focus().toggleItalic().run(), editor.isActive("italic"))}
+        {btn("H2", () => editor.chain().focus().toggleHeading({ level: 2 }).run(), editor.isActive("heading", { level: 2 }))}
+        {btn("H3", () => editor.chain().focus().toggleHeading({ level: 3 }).run(), editor.isActive("heading", { level: 3 }))}
+        {btn("UL", () => editor.chain().focus().toggleBulletList().run(), editor.isActive("bulletList"))}
+        {btn("OL", () => editor.chain().focus().toggleOrderedList().run(), editor.isActive("orderedList"))}
+        {btn("—", () => editor.chain().focus().setHorizontalRule().run())}
+        {btn("Img", addImage)}
+        {btn("Table", () =>
+          editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
+        )}
+      </div>
+      <EditorContent
+        editor={editor}
+        className="prose prose-sm max-w-none p-3 min-h-[200px] focus-within:outline-none"
+      />
+    </div>
+  );
+}
+
+function ArticlesAdminPage() {
+  const [articles, setArticles] = useState<ArticleRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState<ArticleRow | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState<ArticleFormData>(EMPTY_FORM);
+  const [contentHtml, setContentHtml] = useState("");
+  const [editHtml, setEditHtml] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    adminListArticles()
+      .then(setArticles)
+      .catch((e: Error) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  function openCreate() {
+    setForm(EMPTY_FORM);
+    setContentHtml("");
+    setCreating(true);
+    setEditing(null);
+  }
+
+  function openEdit(a: ArticleRow) {
+    setForm({
+      title: a.title,
+      author: a.author,
+      published_date: a.published_date.slice(0, 10),
+      excerpt: "",
+      thumbnail_url: "",
+      slug: a.slug,
+    });
+    setEditHtml("");
+    setEditing(a);
+    setCreating(false);
+  }
+
+  function closeForm() {
+    setCreating(false);
+    setEditing(null);
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      if (creating) {
+        await adminCreateArticle({
+          ...form,
+          content_html: contentHtml,
+          thumbnail_url: form.thumbnail_url || undefined,
+        });
+      } else if (editing) {
+        const patch: Record<string, string> = {};
+        if (form.title) patch.title = form.title;
+        if (form.author) patch.author = form.author;
+        if (form.published_date) patch.published_date = form.published_date;
+        if (form.excerpt) patch.excerpt = form.excerpt;
+        if (form.thumbnail_url) patch.thumbnail_url = form.thumbnail_url;
+        if (form.slug) patch.slug = form.slug;
+        if (editHtml) patch.content_html = editHtml;
+        await adminUpdateArticle(editing.article_id, patch);
+      }
+      closeForm();
+      load();
+    } catch (e) {
+      alert(`Save failed: ${(e as Error).message}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(id: number) {
+    if (!confirm("Delete this article?")) return;
+    try {
+      await adminDeleteArticle(id);
+      setArticles((prev) => prev.filter((a) => a.article_id !== id));
+    } catch (e) {
+      alert(`Delete failed: ${(e as Error).message}`);
+    }
+  }
+
+  const showForm = creating || editing !== null;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-bold">Articles</h2>
+          <p className="text-sm text-muted-foreground">Create and manage written content.</p>
+        </div>
+        {!showForm && (
+          <Button size="sm" onClick={openCreate}>
+            <Plus className="h-3.5 w-3.5 mr-1" /> New Article
+          </Button>
+        )}
+      </div>
+
+      {error && (
+        <div className="flex items-center gap-2 rounded border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+          <AlertCircle className="h-4 w-4" /> {error}
+        </div>
+      )}
+
+      {showForm && (
+        <Card>
+          <CardContent className="pt-4 space-y-3">
+            <h3 className="font-semibold text-sm">{creating ? "New Article" : "Edit Article"}</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <label className="text-xs text-muted-foreground block mb-1">Title</label>
+                <Input
+                  value={form.title}
+                  onChange={(e) => {
+                    const t = e.target.value;
+                    setForm((f) => ({ ...f, title: t, slug: creating ? slugify(t) : f.slug }));
+                  }}
+                  placeholder="Article title"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Author</label>
+                <Input
+                  value={form.author}
+                  onChange={(e) => setForm((f) => ({ ...f, author: e.target.value }))}
+                  placeholder="Author name"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Published Date</label>
+                <Input
+                  type="date"
+                  value={form.published_date}
+                  onChange={(e) => setForm((f) => ({ ...f, published_date: e.target.value }))}
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="text-xs text-muted-foreground block mb-1">Excerpt</label>
+                <Input
+                  value={form.excerpt}
+                  onChange={(e) => setForm((f) => ({ ...f, excerpt: e.target.value }))}
+                  placeholder="Short description for card view"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Slug</label>
+                <Input
+                  value={form.slug}
+                  onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value }))}
+                  placeholder="url-friendly-slug"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Thumbnail URL (optional)</label>
+                <Input
+                  value={form.thumbnail_url}
+                  onChange={(e) => setForm((f) => ({ ...f, thumbnail_url: e.target.value }))}
+                  placeholder="https://..."
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">
+                Content {editing && "(leave unchanged to keep existing content)"}
+              </label>
+              <ArticleEditor
+                initialHtml={editing ? "" : ""}
+                onChange={creating ? setContentHtml : setEditHtml}
+              />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button size="sm" onClick={handleSave} disabled={saving}>
+                {saving ? "Saving…" : "Save"}
+              </Button>
+              <Button size="sm" variant="outline" onClick={closeForm}>
+                Cancel
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {loading ? (
+        <LoadingSpinner />
+      ) : (
+        <Card>
+          <CardContent className="pt-4">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                  <th className="pb-2">Title</th>
+                  <th className="pb-2">Author</th>
+                  <th className="pb-2">Date</th>
+                  <th className="pb-2">Slug</th>
+                  <th className="pb-2">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {articles.map((a) => (
+                  <tr key={a.article_id} className="border-b border-border/50">
+                    <td className="py-1.5 font-medium">{a.title}</td>
+                    <td className="py-1.5 text-muted-foreground">{a.author}</td>
+                    <td className="py-1.5 text-muted-foreground">
+                      {new Date(a.published_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                    </td>
+                    <td className="py-1.5 text-xs text-muted-foreground font-mono">{a.slug}</td>
+                    <td className="py-1.5">
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => openEdit(a)}>
+                          Edit
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6 text-destructive hover:text-destructive"
+                          onClick={() => handleDelete(a.article_id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {articles.length === 0 && (
+              <p className="py-6 text-center text-sm text-muted-foreground">No articles yet.</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Podcasts admin
+// ---------------------------------------------------------------------------
+
+function PodcastsAdminPage() {
+  const [episodes, setEpisodes] = useState<PodcastEpisode[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    getPodcasts(1)
+      .then((res) => setEpisodes(res.episodes))
+      .catch((e: Error) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function handleSync() {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const res = await adminSyncPodcasts();
+      setSyncResult(`Sync complete — ${res.new_episodes} new episode${res.new_episodes === 1 ? "" : "s"} added.`);
+      if (res.new_episodes > 0) load();
+    } catch (e) {
+      setSyncResult(`Sync failed: ${(e as Error).message}`);
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  async function handleDelete(id: number) {
+    if (!confirm("Remove this episode?")) return;
+    try {
+      await adminDeleteEpisode(id);
+      setEpisodes((prev) => prev.filter((ep) => ep.episode_id !== id));
+    } catch (e) {
+      alert(`Delete failed: ${(e as Error).message}`);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-bold">Podcasts</h2>
+          <p className="text-sm text-muted-foreground">Sync episodes from the YouTube channel.</p>
+        </div>
+        <Button size="sm" onClick={handleSync} disabled={syncing}>
+          <RefreshCw className={`h-3.5 w-3.5 mr-1 ${syncing ? "animate-spin" : ""}`} />
+          {syncing ? "Syncing…" : "Sync from YouTube"}
+        </Button>
+      </div>
+
+      {syncResult && (
+        <p className="text-sm text-muted-foreground rounded border border-border px-3 py-2">{syncResult}</p>
+      )}
+
+      {error && (
+        <div className="flex items-center gap-2 rounded border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+          <AlertCircle className="h-4 w-4" /> {error}
+        </div>
+      )}
+
+      {loading ? (
+        <LoadingSpinner />
+      ) : (
+        <Card>
+          <CardContent className="pt-4">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                  <th className="pb-2">Title</th>
+                  <th className="pb-2">Date</th>
+                  <th className="pb-2">YouTube ID</th>
+                  <th className="pb-2">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {episodes.map((ep) => (
+                  <tr key={ep.episode_id} className="border-b border-border/50">
+                    <td className="py-1.5 font-medium">{ep.title}</td>
+                    <td className="py-1.5 text-muted-foreground">
+                      {new Date(ep.published_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                    </td>
+                    <td className="py-1.5 font-mono text-xs text-muted-foreground">{ep.youtube_id}</td>
+                    <td className="py-1.5">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6 text-destructive hover:text-destructive"
+                        onClick={() => handleDelete(ep.episode_id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {episodes.length === 0 && (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                No episodes. Click "Sync from YouTube" to fetch the latest.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Admin layout
 // ---------------------------------------------------------------------------
 
@@ -280,6 +755,8 @@ function AdminNav() {
       <h1 className="text-xl font-bold mr-4">Admin</h1>
       <NavLink to="/admin/player-mapping" className={linkClass}>Player Mapping</NavLink>
       <NavLink to="/admin/score-audit" className={linkClass}>Score Audit</NavLink>
+      <NavLink to="/admin/articles" className={linkClass}>Articles</NavLink>
+      <NavLink to="/admin/podcasts" className={linkClass}>Podcasts</NavLink>
     </div>
   );
 }
@@ -291,6 +768,8 @@ export default function Admin() {
       <Routes>
         <Route path="player-mapping" element={<PlayerMappingPage />} />
         <Route path="score-audit" element={<ScoreAuditPage />} />
+        <Route path="articles" element={<ArticlesAdminPage />} />
+        <Route path="podcasts" element={<PodcastsAdminPage />} />
         <Route index element={<PlayerMappingPage />} />
       </Routes>
     </div>

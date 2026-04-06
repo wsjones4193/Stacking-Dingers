@@ -6,8 +6,10 @@ import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   BookOpen,
+  FileText,
   LayoutDashboard,
   List,
+  Mic,
   Settings,
   TrendingUp,
   Users,
@@ -22,6 +24,8 @@ const NAV_ITEMS = [
   { to: "/adp", icon: TrendingUp, label: "ADP Explorer" },
   { to: "/history", icon: BookOpen, label: "History Browser" },
   { to: "/leaderboard", icon: List, label: "Leaderboard" },
+  { to: "/articles", icon: FileText, label: "Articles" },
+  { to: "/podcasts", icon: Mic, label: "Podcasts" },
 ];
 
 function NavItem({ to, icon: Icon, label }: { to: string; icon: React.ElementType; label: string }) {

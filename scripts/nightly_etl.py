@@ -57,6 +57,7 @@ from backend.db.parquet_helpers import load_gamelogs_week, load_gamelogs_for_pla
 from backend.etl.game_logs import ingest_yesterday
 from backend.etl.projections import refresh_projections, OPENING_DAY_2026
 from backend.etl.team_profiles import compute_and_store_team_profiles
+from backend.etl.youtube_sync import sync_youtube_feed
 from backend.services.lineup_setter import RosterPlayer, set_lineup
 from backend.services.bpcor import compute_week_bpcor
 
@@ -569,8 +570,13 @@ def run_nightly_etl(season: int = CURRENT_SEASON, full_reload: bool = False) -> 
         profile_result = compute_and_store_team_profiles(season, session)
         logger.info(f"Team profiles: {profile_result}")
 
-        # Step 9: Score audit
-        logger.info("Step 9: Generating score audit")
+        # Step 9: Sync YouTube podcast feed
+        logger.info("Step 9: Syncing YouTube podcast feed")
+        youtube_result = sync_youtube_feed(session)
+        logger.info(f"YouTube sync: {youtube_result}")
+
+        # Step 10: Score audit
+        logger.info("Step 10: Generating score audit")
         audit_result = generate_score_audit(season, session)
         logger.info(f"Score audit: {audit_result}")
 

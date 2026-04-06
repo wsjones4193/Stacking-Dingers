@@ -8,10 +8,13 @@ import type {
   AdpAccuracyEntry,
   AdpMovementPoint,
   AdpScatterPoint,
+  ArticleDetail,
+  ArticleListResponse,
   CeilingData,
   ComboData,
   DataResponse,
   DraftStructureData,
+  EpisodeListResponse,
   GlobalFilters,
   LeaderboardEntry,
   PlayerDetail,
@@ -156,3 +159,42 @@ export const addMapping = (body: Partial<PlayerMapping>) =>
 
 export const getScoreAudit = (season?: number) =>
   get<ScoreAuditEntry[]>("/api/admin/score-audit", { season });
+
+// ---------------------------------------------------------------------------
+// Content — Articles
+// ---------------------------------------------------------------------------
+
+export const getArticles = (page?: number) =>
+  get<ArticleListResponse>("/api/content/articles", { page });
+
+export const getArticle = (slug: string) =>
+  get<ArticleDetail>(`/api/content/articles/${slug}`);
+
+export const adminListArticles = () =>
+  get<{ article_id: number; title: string; author: string; published_date: string; slug: string; updated_at: string }[]>("/api/admin/articles");
+
+export const adminCreateArticle = (body: {
+  title: string; author: string; published_date: string;
+  excerpt: string; content_html: string; thumbnail_url?: string; slug: string;
+}) => post<{ article_id: number; slug: string }>("/api/admin/articles", body);
+
+export const adminUpdateArticle = (articleId: number, body: Partial<{
+  title: string; author: string; published_date: string;
+  excerpt: string; content_html: string; thumbnail_url: string; slug: string;
+}>) => patch<{ article_id: number; slug: string }>(`/api/admin/articles/${articleId}`, body);
+
+export const adminDeleteArticle = (articleId: number) =>
+  fetch(`${import.meta.env.VITE_API_BASE_URL ?? ""}/api/admin/articles/${articleId}`, { method: "DELETE" });
+
+// ---------------------------------------------------------------------------
+// Content — Podcasts
+// ---------------------------------------------------------------------------
+
+export const getPodcasts = (page?: number) =>
+  get<EpisodeListResponse>("/api/content/podcasts", { page });
+
+export const adminSyncPodcasts = () =>
+  post<{ new_episodes: number; feed_entries?: number }>("/api/admin/podcasts/sync", {});
+
+export const adminDeleteEpisode = (episodeId: number) =>
+  fetch(`${import.meta.env.VITE_API_BASE_URL ?? ""}/api/admin/podcasts/${episodeId}`, { method: "DELETE" });

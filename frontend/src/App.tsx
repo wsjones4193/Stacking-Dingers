@@ -6,6 +6,8 @@ import ADPExplorer from "@/pages/ADPExplorer";
 import HistoryBrowser from "@/pages/HistoryBrowser";
 import Leaderboard from "@/pages/Leaderboard";
 import Admin from "@/pages/Admin";
+import Articles from "@/pages/Articles";
+import Podcasts from "@/pages/Podcasts";
 
 export default function App() {
   return (
@@ -20,6 +22,9 @@ export default function App() {
         <Route path="/history" element={<HistoryBrowser />} />
         <Route path="/history/:moduleId" element={<HistoryBrowser />} />
         <Route path="/leaderboard" element={<Leaderboard />} />
+        <Route path="/articles" element={<Articles />} />
+        <Route path="/articles/:slug" element={<Articles />} />
+        <Route path="/podcasts" element={<Podcasts />} />
         <Route path="/admin/*" element={<Admin />} />
       </Routes>
     </Layout>

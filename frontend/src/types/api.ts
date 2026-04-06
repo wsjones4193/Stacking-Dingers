@@ -283,6 +283,52 @@ export interface ScoreAuditEntry {
 }
 
 // ---------------------------------------------------------------------------
+// Content — Articles
+// ---------------------------------------------------------------------------
+
+export interface ArticleSummary {
+  article_id: number;
+  title: string;
+  author: string;
+  published_date: string;
+  excerpt: string;
+  thumbnail_url: string | null;
+  slug: string;
+}
+
+export interface ArticleDetail extends ArticleSummary {
+  content_html: string;
+  updated_at: string;
+}
+
+export interface ArticleListResponse {
+  articles: ArticleSummary[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+// ---------------------------------------------------------------------------
+// Content — Podcasts
+// ---------------------------------------------------------------------------
+
+export interface PodcastEpisode {
+  episode_id: number;
+  youtube_id: string;
+  title: string;
+  published_date: string;
+  description: string;
+  thumbnail_url: string | null;
+}
+
+export interface EpisodeListResponse {
+  episodes: PodcastEpisode[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+// ---------------------------------------------------------------------------
 // Filter params (shared across endpoints)
 // ---------------------------------------------------------------------------
 

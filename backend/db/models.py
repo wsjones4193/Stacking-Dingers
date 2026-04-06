@@ -241,6 +241,41 @@ class RosterFlag(SQLModel, table=True):
 
 
 # ---------------------------------------------------------------------------
+# Articles (admin-authored written content)
+# ---------------------------------------------------------------------------
+
+class Article(SQLModel, table=True):
+    __tablename__ = "articles"
+
+    article_id: Optional[int] = Field(default=None, primary_key=True)
+    title: str = Field(index=True)
+    author: str
+    published_date: date
+    content_html: str           # rich-text stored as HTML (TipTap output)
+    excerpt: str                # plain-text blurb for card view
+    thumbnail_url: Optional[str] = None
+    slug: str = Field(unique=True, index=True)   # URL-friendly identifier
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+# ---------------------------------------------------------------------------
+# Podcast episodes (auto-synced from YouTube RSS)
+# ---------------------------------------------------------------------------
+
+class PodcastEpisode(SQLModel, table=True):
+    __tablename__ = "podcast_episodes"
+
+    episode_id: Optional[int] = Field(default=None, primary_key=True)
+    youtube_id: str = Field(unique=True, index=True)   # e.g. "dQw4w9WgXcQ"
+    title: str
+    published_date: date
+    description: str
+    thumbnail_url: Optional[str] = None
+    duration_seconds: Optional[int] = None
+
+
+# ---------------------------------------------------------------------------
 # Combo projections (association rule mining — combinatorial ownership)
 # ---------------------------------------------------------------------------
 

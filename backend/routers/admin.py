@@ -18,7 +18,8 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from backend.db.deps import get_session
-from backend.db.models import Player, PlayerIdMap, ScoreAudit
+from backend.db.models import Article, Player, PlayerIdMap, PodcastEpisode, ScoreAudit
+from backend.etl.youtube_sync import sync_youtube_feed
 from backend.schemas import DataResponse, PlayerMappingEntry, ScoreAuditEntry
 
 router = APIRouter()
@@ -221,3 +222,131 @@ def get_score_audit(
         sample_size=len(entries),
         data_as_of=date.today().isoformat(),
     )
+
+
+# ---------------------------------------------------------------------------
+# Articles CRUD
+# ---------------------------------------------------------------------------
+
+class ArticleCreate(BaseModel):
+    title: str
+    author: str
+    published_date: str   # YYYY-MM-DD
+    excerpt: str
+    content_html: str
+    thumbnail_url: Optional[str] = None
+    slug: str
+
+
+class ArticleUpdate(BaseModel):
+    title: Optional[str] = None
+    author: Optional[str] = None
+    published_date: Optional[str] = None
+    excerpt: Optional[str] = None
+    content_html: Optional[str] = None
+    thumbnail_url: Optional[str] = None
+    slug: Optional[str] = None
+
+
+@router.post("/articles", status_code=201)
+def create_article(body: ArticleCreate, session: SessionDep):
+    """Create a new article."""
+    from datetime import date as _date, datetime as _datetime
+    existing = session.exec(select(Article).where(Article.slug == body.slug)).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="Slug already exists")
+
+    article = Article(
+        title=body.title,
+        author=body.author,
+        published_date=_date.fromisoformat(body.published_date),
+        excerpt=body.excerpt,
+        content_html=body.content_html,
+        thumbnail_url=body.thumbnail_url,
+        slug=body.slug,
+        created_at=_datetime.utcnow(),
+        updated_at=_datetime.utcnow(),
+    )
+    session.add(article)
+    session.commit()
+    session.refresh(article)
+    return {"article_id": article.article_id, "slug": article.slug}
+
+
+@router.patch("/articles/{article_id}")
+def update_article(article_id: int, body: ArticleUpdate, session: SessionDep):
+    """Update an existing article."""
+    from datetime import date as _date, datetime as _datetime
+    article = session.get(Article, article_id)
+    if not article:
+        raise HTTPException(status_code=404, detail="Article not found")
+
+    if body.title is not None:
+        article.title = body.title
+    if body.author is not None:
+        article.author = body.author
+    if body.published_date is not None:
+        article.published_date = _date.fromisoformat(body.published_date)
+    if body.excerpt is not None:
+        article.excerpt = body.excerpt
+    if body.content_html is not None:
+        article.content_html = body.content_html
+    if body.thumbnail_url is not None:
+        article.thumbnail_url = body.thumbnail_url
+    if body.slug is not None:
+        article.slug = body.slug
+    article.updated_at = _datetime.utcnow()
+
+    session.add(article)
+    session.commit()
+    return {"article_id": article.article_id, "slug": article.slug}
+
+
+@router.delete("/articles/{article_id}", status_code=204)
+def delete_article(article_id: int, session: SessionDep):
+    """Delete an article."""
+    article = session.get(Article, article_id)
+    if not article:
+        raise HTTPException(status_code=404, detail="Article not found")
+    session.delete(article)
+    session.commit()
+
+
+@router.get("/articles")
+def list_articles_admin(session: SessionDep):
+    """List all articles for admin management (includes article_id for edit/delete)."""
+    articles = session.exec(
+        select(Article).order_by(Article.published_date.desc())
+    ).all()
+    return [
+        {
+            "article_id": a.article_id,
+            "title": a.title,
+            "author": a.author,
+            "published_date": a.published_date.isoformat(),
+            "slug": a.slug,
+            "updated_at": a.updated_at.isoformat(),
+        }
+        for a in articles
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Podcast sync + management
+# ---------------------------------------------------------------------------
+
+@router.post("/podcasts/sync")
+def sync_podcasts(session: SessionDep):
+    """Manually trigger a YouTube RSS sync to pull new episodes."""
+    result = sync_youtube_feed(session)
+    return result
+
+
+@router.delete("/podcasts/{episode_id}", status_code=204)
+def delete_episode(episode_id: int, session: SessionDep):
+    """Remove a podcast episode."""
+    episode = session.get(PodcastEpisode, episode_id)
+    if not episode:
+        raise HTTPException(status_code=404, detail="Episode not found")
+    session.delete(episode)
+    session.commit()
