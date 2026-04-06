@@ -1,5 +1,6 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route } from "react-router-dom";
 import Layout from "@/components/Layout";
+import Home from "@/pages/Home";
 import PlayerHub from "@/pages/PlayerHub";
 import TeamAnalyzer from "@/pages/TeamAnalyzer";
 import ADPExplorer from "@/pages/ADPExplorer";
@@ -13,7 +14,7 @@ export default function App() {
   return (
     <Layout>
       <Routes>
-        <Route path="/" element={<Navigate to="/players" replace />} />
+        <Route path="/" element={<Home />} />
         <Route path="/players" element={<PlayerHub />} />
         <Route path="/players/:playerId" element={<PlayerHub />} />
         <Route path="/teams" element={<TeamAnalyzer />} />
