@@ -60,7 +60,7 @@ const SECTIONS = [
     ],
   },
   {
-    heading: "Leaderboard",
+    heading: "Live Leaderboard",
     items: [
       {
         to: "/leaderboard",
