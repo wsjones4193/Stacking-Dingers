@@ -6,10 +6,8 @@
 |---|---|
 | Repo name | Stacking-Dingers |
 | GitHub URL | https://github.com/wsjones4193/Stacking-Dingers |
-| Default branch | main |
+| Default branch | master |
 | Local path | `C:\Users\wsjon\OneDrive\Stacking Dingers\Website` |
-
-> **Note:** The repo was initialized with `master`. Rename to `main` on GitHub under Settings → Branches → Rename.
 
 ---
 
@@ -23,8 +21,8 @@
 | ETL | Python scripts, GitHub Actions (nightly, March–September) |
 | Frontend | React + Vite + TypeScript |
 | Charts | Recharts |
-| Deployment — backend | Railway or Render |
-| Deployment — frontend | Vercel |
+| Deployment — backend | Railway (`stacking-dingers-production.up.railway.app`) |
+| Deployment — frontend | Vercel (`stacking-dingers.vercel.app`) |
 | Data storage | S3 (SQLite + Parquet files) |
 | Testing | pytest + FastAPI TestClient |
 
@@ -34,6 +32,7 @@
 - `sqlmodel`, `sqlalchemy`
 - `pandas`, `duckdb`, `pyarrow`
 - `mlb-statsapi`, `rapidfuzz`, `httpx`
+- `boto3` (S3 uploads)
 - `pytest`, `pytest-asyncio`, `pytest-cov`
 
 ---
@@ -45,7 +44,8 @@
 | MLB Stats API (`mlb-statsapi`) | Game logs, roster positions, IL transactions | Nightly |
 | Underdog Fantasy CSV exports | Draft pick data (2022–2026) | One-time per season |
 | Fangraphs (Steamer + ATC) | Preseason + RoS projections | Daily preseason / nightly in-season |
-| Internal SQLite (`bestball.db`) | All relational data (drafts, picks, scores, flags) | Maintained by ETL |
+| YouTube RSS feed | Podcast episodes (@StackingDingers channel) | Nightly |
+| Internal SQLite (`bestball.db`) | All relational data (drafts, picks, scores, flags, articles, podcasts) | Maintained by ETL |
 | Internal Parquet (`data/gamelogs/`) | Game-by-game stats and scoring | Maintained by ETL |
 
 ### Underdog CSV URLs
@@ -68,13 +68,41 @@
 │   ├── main.py                 # FastAPI app entry point
 │   ├── constants.py            # season calendar, scoring weights, roster rules
 │   ├── schemas.py              # Pydantic response models
-│   ├── routers/                # API route handlers
+│   ├── routers/
+│   │   ├── players.py
+│   │   ├── teams.py
+│   │   ├── adp.py
+│   │   ├── history.py
+│   │   ├── leaderboard.py
+│   │   ├── content.py          # articles + podcasts public endpoints
+│   │   └── admin.py            # player mapping, score audit, article CRUD, podcast sync
 │   ├── services/               # business logic (scoring, lineup, BPCOR, flags)
-│   ├── etl/                    # data ingestion modules
+│   ├── etl/
+│   │   ├── draft_data.py
+│   │   ├── game_logs.py
+│   │   ├── projections.py
+│   │   ├── team_profiles.py
+│   │   └── youtube_sync.py     # YouTube RSS → podcast_episodes table
 │   └── db/                     # SQLModel models, Parquet helpers, player mapping
-├── frontend/                   # React + Vite (Phase 3)
+├── frontend/                   # React + Vite + TypeScript
+│   └── src/
+│       ├── pages/
+│       │   ├── PlayerHub.tsx
+│       │   ├── TeamAnalyzer.tsx
+│       │   ├── ADPExplorer.tsx
+│       │   ├── HistoryBrowser.tsx
+│       │   ├── Leaderboard.tsx
+│       │   ├── Articles.tsx    # article list + detail view
+│       │   ├── Podcasts.tsx    # episode grid with YouTube links
+│       │   └── Admin.tsx       # player mapping, score audit, article editor, podcast sync
+│       └── components/
+│           ├── Sidebar.tsx     # nav: Player Hub, Team Analyzer, ADP, History, Leaderboard, Articles, Podcasts
+│           └── ...
 ├── scripts/
-│   └── nightly_etl.py          # ETL orchestrator (Steps 1–9)
+│   ├── nightly_etl.py          # ETL orchestrator (includes YouTube sync)
+│   ├── load_historical.py      # one-time historical data loader
+│   ├── clean_historical.py     # normalizes raw Underdog CSVs
+│   └── upload_to_s3.py         # pushes bestball.db + Parquet to S3
 ├── tests/
 │   ├── api/                    # smoke tests (FastAPI TestClient)
 │   ├── etl/                    # ETL unit tests
@@ -84,11 +112,13 @@
 │   ├── gamelogs/               # {season}.parquet
 │   ├── adp_history/            # {season}.parquet
 │   └── fangraphs_player_map.csv
+├── logo/
+│   └── stacking_dingers_logo.webp
 ├── docs/
 │   ├── app-spec.md             # full feature specification
 │   ├── project_context.md      # this file
 │   ├── workflow.md             # Git workflow rules
 │   └── tasks.md                # coding execution rules
 └── .github/workflows/
-    └── nightly_etl.yml         # GitHub Actions cron job
+    └── nightly_etl.yml         # GitHub Actions cron (2am ET, March–September)
 ```
