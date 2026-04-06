@@ -18,14 +18,16 @@ import { cn } from "@/lib/utils";
 import { usePlayerSearch } from "@/hooks/usePlayerSearch";
 import type { PlayerSearchResult } from "@/types/api";
 
-const NAV_ITEMS = [
+const CONTENT_ITEMS = [
+  { to: "/articles", icon: FileText, label: "Articles" },
+  { to: "/podcasts", icon: Mic, label: "Podcasts" },
+];
+
+const DATA_ITEMS = [
   { to: "/players", icon: LayoutDashboard, label: "Player Hub" },
   { to: "/teams", icon: Users, label: "Team Analyzer" },
   { to: "/adp", icon: TrendingUp, label: "ADP Explorer" },
   { to: "/history", icon: BookOpen, label: "History Browser" },
-  { to: "/leaderboard", icon: List, label: "Leaderboard" },
-  { to: "/articles", icon: FileText, label: "Articles" },
-  { to: "/podcasts", icon: Mic, label: "Podcasts" },
 ];
 
 function NavItem({ to, icon: Icon, label }: { to: string; icon: React.ElementType; label: string }) {
@@ -130,21 +132,37 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="mb-4 px-1 flex items-center gap-2">
         <img src="/logo.webp" alt="Stacking Dingers" className="h-9 w-9 shrink-0" />
-        <div>
-          <span className="text-base font-bold tracking-tight text-primary leading-tight block">
-            Stacking Dingers
-          </span>
-          <p className="text-xs text-muted-foreground">MLB Best Ball Hub</p>
-        </div>
+        <span className="text-sm font-semibold text-muted-foreground leading-tight">
+          MLB Best Ball Hub
+        </span>
       </div>
 
       <PlayerSearch />
       <UsernameSearch />
 
-      <nav className="flex flex-1 flex-col gap-1">
-        {NAV_ITEMS.map((item) => (
-          <NavItem key={item.to} {...item} />
-        ))}
+      <nav className="flex flex-1 flex-col gap-4">
+        <div>
+          <p className="px-3 mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">Content</p>
+          <div className="flex flex-col gap-1">
+            {CONTENT_ITEMS.map((item) => (
+              <NavItem key={item.to} {...item} />
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="px-3 mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">Data Hub</p>
+          <div className="flex flex-col gap-1">
+            {DATA_ITEMS.map((item) => (
+              <NavItem key={item.to} {...item} />
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="px-3 mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">Leaderboard</p>
+          <div className="flex flex-col gap-1">
+            <NavItem to="/leaderboard" icon={List} label="Leaderboard" />
+          </div>
+        </div>
       </nav>
 
       <div className="mt-auto border-t border-border pt-3">
