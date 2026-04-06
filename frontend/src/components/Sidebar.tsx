@@ -124,11 +124,14 @@ export default function Sidebar() {
   return (
     <aside className="flex h-screen w-56 shrink-0 flex-col border-r border-border bg-card px-3 py-4">
       {/* Logo */}
-      <div className="mb-4 px-1">
-        <span className="text-base font-bold tracking-tight text-primary">
-          Stacking Dingers
-        </span>
-        <p className="mt-0.5 text-xs text-muted-foreground">MLB Best Ball Hub</p>
+      <div className="mb-4 px-1 flex items-center gap-2">
+        <img src="/logo.webp" alt="Stacking Dingers" className="h-9 w-9 shrink-0" />
+        <div>
+          <span className="text-base font-bold tracking-tight text-primary leading-tight block">
+            Stacking Dingers
+          </span>
+          <p className="text-xs text-muted-foreground">MLB Best Ball Hub</p>
+        </div>
       </div>
 
       <PlayerSearch />
