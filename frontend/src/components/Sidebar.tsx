@@ -125,8 +125,8 @@ export default function Sidebar() {
     <aside className="flex h-screen w-56 shrink-0 flex-col border-r border-border bg-card px-3 py-4">
       {/* Logo */}
       <div className="mb-4 px-1">
-        <span className="text-base font-bold tracking-tight text-foreground">
-          ⚾ Stacking Dingers
+        <span className="text-base font-bold tracking-tight text-primary">
+          Stacking Dingers
         </span>
         <p className="mt-0.5 text-xs text-muted-foreground">MLB Best Ball Hub</p>
       </div>

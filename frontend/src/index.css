@@ -4,25 +4,25 @@
 
 @layer base {
   :root {
-    --background: 222 28% 8%;
-    --foreground: 210 40% 92%;
-    --card: 222 28% 11%;
-    --card-foreground: 210 40% 92%;
-    --popover: 222 28% 9%;
-    --popover-foreground: 210 40% 92%;
-    --primary: 160 60% 45%;
-    --primary-foreground: 222 28% 8%;
-    --secondary: 222 28% 17%;
-    --secondary-foreground: 210 40% 92%;
-    --muted: 222 28% 16%;
-    --muted-foreground: 215 20% 55%;
-    --accent: 222 28% 18%;
-    --accent-foreground: 210 40% 92%;
+    --background: 32 22% 89%;
+    --foreground: 25 12% 12%;
+    --card: 32 18% 93%;
+    --card-foreground: 25 12% 12%;
+    --popover: 32 20% 91%;
+    --popover-foreground: 25 12% 12%;
+    --primary: 152 38% 32%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 32 14% 83%;
+    --secondary-foreground: 25 12% 20%;
+    --muted: 32 14% 84%;
+    --muted-foreground: 30 6% 46%;
+    --accent: 32 14% 85%;
+    --accent-foreground: 25 12% 12%;
     --destructive: 0 72% 51%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 222 28% 18%;
-    --input: 222 28% 16%;
-    --ring: 160 60% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 32 14% 80%;
+    --input: 32 14% 84%;
+    --ring: 152 38% 32%;
     --radius: 0.5rem;
   }
 }
@@ -50,23 +50,23 @@
   }
 }
 
-/* Recharts dark theme overrides */
+/* Recharts light theme overrides */
 .recharts-cartesian-axis-tick-value {
-  fill: hsl(215 20% 55%);
+  fill: hsl(30 6% 46%);
   font-size: 11px;
 }
 .recharts-cartesian-grid-horizontal line,
 .recharts-cartesian-grid-vertical line {
-  stroke: hsl(222 28% 18%);
+  stroke: hsl(32 14% 80%);
 }
 .recharts-tooltip-wrapper .recharts-default-tooltip {
-  background-color: hsl(222 28% 13%) !important;
-  border: 1px solid hsl(222 28% 22%) !important;
+  background-color: hsl(32 18% 93%) !important;
+  border: 1px solid hsl(32 14% 80%) !important;
   border-radius: 6px !important;
 }
 .recharts-tooltip-label {
-  color: hsl(210 40% 92%) !important;
+  color: hsl(25 12% 12%) !important;
 }
 .recharts-tooltip-item {
-  color: hsl(215 20% 72%) !important;
+  color: hsl(30 6% 38%) !important;
 }
