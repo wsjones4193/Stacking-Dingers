@@ -29,7 +29,7 @@ from backend.db.models import PodcastEpisode
 logger = logging.getLogger(__name__)
 
 # Channel ID for @StackingDingers — resolved from the YouTube handle
-YOUTUBE_CHANNEL_ID = "UCStackingDingers"   # placeholder; replace after lookup
+YOUTUBE_CHANNEL_ID = "UCBYZM8KdBBhf4LRu-cGXmmw"
 YOUTUBE_RSS_URL = (
     f"https://www.youtube.com/feeds/videos.xml?channel_id={YOUTUBE_CHANNEL_ID}"
 )
