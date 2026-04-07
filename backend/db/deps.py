@@ -9,7 +9,8 @@ import logging
 from pathlib import Path
 from typing import Generator
 
-from sqlmodel import Session, create_engine, text
+from sqlalchemy import text
+from sqlmodel import Session, create_engine
 
 from backend.db.models import create_db_and_tables
 
