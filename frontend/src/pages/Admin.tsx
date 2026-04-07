@@ -7,13 +7,13 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { NavLink, Route, Routes } from "react-router-dom";
-import { AlertCircle, Check, Plus, RefreshCw, Trash2, X } from "lucide-react";
+import { AlertCircle, Check, Plus, Trash2, X } from "lucide-react";
 import {
   adminCreateArticle,
+  adminCreateEpisode,
   adminDeleteArticle,
   adminDeleteEpisode,
   adminListArticles,
-  adminSyncPodcasts,
   adminUpdateArticle,
   confirmMapping,
   getPlayerMappings,
@@ -628,12 +628,29 @@ function ArticlesAdminPage() {
 // Podcasts admin
 // ---------------------------------------------------------------------------
 
+type EpisodeForm = {
+  youtube_url: string;
+  title: string;
+  published_date: string;
+  series: string;
+  description: string;
+};
+
+const EMPTY_EPISODE_FORM: EpisodeForm = {
+  youtube_url: "",
+  title: "",
+  published_date: new Date().toISOString().slice(0, 10),
+  series: "",
+  description: "",
+};
+
 function PodcastsAdminPage() {
   const [episodes, setEpisodes] = useState<PodcastEpisode[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [syncing, setSyncing] = useState(false);
-  const [syncResult, setSyncResult] = useState<string | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState<EpisodeForm>(EMPTY_EPISODE_FORM);
+  const [saving, setSaving] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -645,17 +662,27 @@ function PodcastsAdminPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  async function handleSync() {
-    setSyncing(true);
-    setSyncResult(null);
+  async function handleAdd() {
+    if (!form.youtube_url.trim() || !form.title.trim() || !form.published_date) {
+      alert("YouTube URL, title, and date are required.");
+      return;
+    }
+    setSaving(true);
     try {
-      const res = await adminSyncPodcasts();
-      setSyncResult(`Sync complete — ${res.new_episodes} new episode${res.new_episodes === 1 ? "" : "s"} added.`);
-      if (res.new_episodes > 0) load();
+      await adminCreateEpisode({
+        youtube_url: form.youtube_url.trim(),
+        title: form.title.trim(),
+        published_date: form.published_date,
+        series: form.series.trim() || undefined,
+        description: form.description.trim(),
+      });
+      setForm(EMPTY_EPISODE_FORM);
+      setShowForm(false);
+      load();
     } catch (e) {
-      setSyncResult(`Sync failed: ${(e as Error).message}`);
+      alert(`Failed to add episode: ${(e as Error).message}`);
     } finally {
-      setSyncing(false);
+      setSaving(false);
     }
   }
 
@@ -674,22 +701,77 @@ function PodcastsAdminPage() {
       <div className="flex items-center justify-between gap-4">
         <div>
           <h2 className="text-lg font-bold">Podcasts</h2>
-          <p className="text-sm text-muted-foreground">Sync episodes from the YouTube channel.</p>
+          <p className="text-sm text-muted-foreground">Manually add YouTube episodes.</p>
         </div>
-        <Button size="sm" onClick={handleSync} disabled={syncing}>
-          <RefreshCw className={`h-3.5 w-3.5 mr-1 ${syncing ? "animate-spin" : ""}`} />
-          {syncing ? "Syncing…" : "Sync from YouTube"}
-        </Button>
+        {!showForm && (
+          <Button size="sm" onClick={() => setShowForm(true)}>
+            <Plus className="h-3.5 w-3.5 mr-1" /> Add Episode
+          </Button>
+        )}
       </div>
-
-      {syncResult && (
-        <p className="text-sm text-muted-foreground rounded border border-border px-3 py-2">{syncResult}</p>
-      )}
 
       {error && (
         <div className="flex items-center gap-2 rounded border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
           <AlertCircle className="h-4 w-4" /> {error}
         </div>
+      )}
+
+      {showForm && (
+        <Card>
+          <CardContent className="pt-4 space-y-3">
+            <h3 className="font-semibold text-sm">Add Episode</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <label className="text-xs text-muted-foreground block mb-1">YouTube URL or Video ID <span className="text-destructive">*</span></label>
+                <Input
+                  value={form.youtube_url}
+                  onChange={(e) => setForm((f) => ({ ...f, youtube_url: e.target.value }))}
+                  placeholder="https://www.youtube.com/watch?v=... or video ID"
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="text-xs text-muted-foreground block mb-1">Title <span className="text-destructive">*</span></label>
+                <Input
+                  value={form.title}
+                  onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+                  placeholder="Episode title"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Published Date <span className="text-destructive">*</span></label>
+                <Input
+                  type="date"
+                  value={form.published_date}
+                  onChange={(e) => setForm((f) => ({ ...f, published_date: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Series</label>
+                <Input
+                  value={form.series}
+                  onChange={(e) => setForm((f) => ({ ...f, series: e.target.value }))}
+                  placeholder="e.g. Draft Season 2026"
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="text-xs text-muted-foreground block mb-1">Description (optional)</label>
+                <Input
+                  value={form.description}
+                  onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                  placeholder="Short description"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button size="sm" onClick={handleAdd} disabled={saving}>
+                {saving ? "Saving…" : "Add Episode"}
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => { setShowForm(false); setForm(EMPTY_EPISODE_FORM); }}>
+                Cancel
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {loading ? (
@@ -701,6 +783,7 @@ function PodcastsAdminPage() {
               <thead>
                 <tr className="border-b border-border text-left text-xs text-muted-foreground">
                   <th className="pb-2">Title</th>
+                  <th className="pb-2">Series</th>
                   <th className="pb-2">Date</th>
                   <th className="pb-2">YouTube ID</th>
                   <th className="pb-2">Action</th>
@@ -710,6 +793,7 @@ function PodcastsAdminPage() {
                 {episodes.map((ep) => (
                   <tr key={ep.episode_id} className="border-b border-border/50">
                     <td className="py-1.5 font-medium">{ep.title}</td>
+                    <td className="py-1.5 text-muted-foreground">{ep.series ?? "—"}</td>
                     <td className="py-1.5 text-muted-foreground">
                       {new Date(ep.published_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                     </td>
@@ -730,7 +814,7 @@ function PodcastsAdminPage() {
             </table>
             {episodes.length === 0 && (
               <p className="py-6 text-center text-sm text-muted-foreground">
-                No episodes. Click "Sync from YouTube" to fetch the latest.
+                No episodes yet. Click "Add Episode" to get started.
               </p>
             )}
           </CardContent>

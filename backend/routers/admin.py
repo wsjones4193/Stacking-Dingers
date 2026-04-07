@@ -6,6 +6,9 @@ PATCH /api/admin/player-mapping/{map_id} — confirm or correct a mapping
 POST  /api/admin/player-mapping        — manually add a mapping
 
 GET  /api/admin/score-audit            — score discrepancies
+
+POST   /api/admin/podcasts             — manually add a podcast episode
+DELETE /api/admin/podcasts/{id}        — remove an episode
 """
 
 from __future__ import annotations
@@ -17,9 +20,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
+from urllib.parse import parse_qs, urlparse
+
 from backend.db.deps import get_session
 from backend.db.models import Article, Player, PlayerIdMap, PodcastEpisode, ScoreAudit
-from backend.etl.youtube_sync import sync_youtube_feed
 from backend.schemas import DataResponse, PlayerMappingEntry, ScoreAuditEntry
 
 router = APIRouter()
@@ -332,14 +336,53 @@ def list_articles_admin(session: SessionDep):
 
 
 # ---------------------------------------------------------------------------
-# Podcast sync + management
+# Podcast manual management
 # ---------------------------------------------------------------------------
 
-@router.post("/podcasts/sync")
-def sync_podcasts(session: SessionDep):
-    """Manually trigger a YouTube RSS sync to pull new episodes."""
-    result = sync_youtube_feed(session)
-    return result
+def _extract_youtube_id(raw: str) -> str:
+    """Extract a YouTube video ID from a full URL, youtu.be link, or bare ID."""
+    raw = raw.strip()
+    if "youtube.com/watch" in raw:
+        qs = parse_qs(urlparse(raw).query)
+        ids = qs.get("v", [])
+        if ids:
+            return ids[0]
+    if "youtu.be/" in raw:
+        return raw.split("youtu.be/")[-1].split("?")[0].split("/")[0]
+    # Assume it's already a bare video ID
+    return raw
+
+
+class EpisodeCreate(BaseModel):
+    youtube_url: str          # full URL or bare video ID
+    title: str
+    published_date: str       # ISO date YYYY-MM-DD
+    series: Optional[str] = None
+    description: str = ""
+    thumbnail_url: Optional[str] = None
+
+
+@router.post("/podcasts", status_code=201)
+def create_episode(body: EpisodeCreate, session: SessionDep):
+    """Manually add a podcast episode by YouTube URL or video ID."""
+    youtube_id = _extract_youtube_id(body.youtube_url)
+    existing = session.exec(
+        select(PodcastEpisode).where(PodcastEpisode.youtube_id == youtube_id)
+    ).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="Episode with this YouTube ID already exists")
+    episode = PodcastEpisode(
+        youtube_id=youtube_id,
+        title=body.title,
+        published_date=date.fromisoformat(body.published_date),
+        description=body.description,
+        series=body.series,
+        thumbnail_url=body.thumbnail_url,
+    )
+    session.add(episode)
+    session.commit()
+    session.refresh(episode)
+    return {"episode_id": episode.episode_id, "youtube_id": episode.youtube_id}
 
 
 @router.delete("/podcasts/{episode_id}", status_code=204)

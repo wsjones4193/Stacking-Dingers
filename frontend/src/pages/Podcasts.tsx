@@ -32,6 +32,11 @@ function EpisodeCard({ episode }: { episode: PodcastEpisode }) {
       </div>
 
       <div className="flex flex-1 flex-col p-4">
+        {episode.series && (
+          <span className="mb-2 inline-block self-start rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+            {episode.series}
+          </span>
+        )}
         <a
           href={watchUrl}
           target="_blank"

@@ -193,8 +193,14 @@ export const adminDeleteArticle = (articleId: number) =>
 export const getPodcasts = (page?: number) =>
   get<EpisodeListResponse>("/api/content/podcasts", { page });
 
-export const adminSyncPodcasts = () =>
-  post<{ new_episodes: number; feed_entries?: number }>("/api/admin/podcasts/sync", {});
+export const adminCreateEpisode = (body: {
+  youtube_url: string;
+  title: string;
+  published_date: string;
+  series?: string;
+  description?: string;
+  thumbnail_url?: string;
+}) => post<{ episode_id: number; youtube_id: string }>("/api/admin/podcasts", body);
 
 export const adminDeleteEpisode = (episodeId: number) =>
   fetch(`${import.meta.env.VITE_API_BASE_URL ?? ""}/api/admin/podcasts/${episodeId}`, { method: "DELETE" });

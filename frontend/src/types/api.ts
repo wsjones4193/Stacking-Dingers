@@ -319,6 +319,7 @@ export interface PodcastEpisode {
   published_date: string;
   description: string;
   thumbnail_url: string | null;
+  series: string | null;
 }
 
 export interface EpisodeListResponse {

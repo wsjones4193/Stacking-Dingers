@@ -63,6 +63,7 @@ class EpisodeSummary(BaseModel):
     published_date: str
     description: str
     thumbnail_url: str | None
+    series: str | None
 
 
 class EpisodeListResponse(BaseModel):
@@ -158,6 +159,7 @@ def list_podcasts(
                 published_date=e.published_date.isoformat(),
                 description=e.description,
                 thumbnail_url=e.thumbnail_url,
+                series=e.series,
             )
             for e in page_episodes
         ],

@@ -9,6 +9,7 @@ import json
 from datetime import date, datetime
 from typing import Optional
 
+from sqlalchemy import UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 
@@ -89,6 +90,25 @@ class WeeklyScore(SQLModel, table=True):
     is_starter: bool = Field(default=False)
     is_flex: bool = Field(default=False)
     is_bench: bool = Field(default=True)
+
+
+# ---------------------------------------------------------------------------
+# Player-level weekly scores (MLB-wide, independent of drafts)
+# ---------------------------------------------------------------------------
+
+class PlayerWeeklyScore(SQLModel, table=True):
+    __tablename__ = "player_weekly_scores"
+    __table_args__ = (
+        UniqueConstraint("mlb_id", "season", "week_number", "stat_type"),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    mlb_id: int = Field(index=True)
+    player_name: str
+    season: int = Field(index=True)
+    week_number: int
+    stat_type: str              # "hitting" or "pitching"
+    calculated_points: float = Field(default=0.0)
 
 
 # ---------------------------------------------------------------------------
@@ -260,7 +280,7 @@ class Article(SQLModel, table=True):
 
 
 # ---------------------------------------------------------------------------
-# Podcast episodes (auto-synced from YouTube RSS)
+# Podcast episodes (manually added via admin)
 # ---------------------------------------------------------------------------
 
 class PodcastEpisode(SQLModel, table=True):
@@ -273,6 +293,7 @@ class PodcastEpisode(SQLModel, table=True):
     description: str
     thumbnail_url: Optional[str] = None
     duration_seconds: Optional[int] = None
+    series: Optional[str] = None   # user-defined tag e.g. "Draft Season 2026"
 
 
 # ---------------------------------------------------------------------------
