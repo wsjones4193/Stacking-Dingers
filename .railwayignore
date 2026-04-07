@@ -1,0 +1,43 @@
+# Frontend — Railway only runs the backend
+frontend/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# Data files (served from S3 in prod)
+data/gamelogs/
+data/adp_history/
+data/bestball.db
+data/bestball_test.db
+data/csv/
+data/mapping/
+data/weeks/
+data/player_id_mapping.csv
+
+# Secrets
+.env
+.env.*
+*.secret
+*.csv
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Docs
+docs/
+*.docx
+
+# Logs
+*.log
