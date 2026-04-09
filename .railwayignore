@@ -18,10 +18,13 @@ data/gamelogs/
 data/adp_history/
 data/bestball.db
 data/bestball_test.db
+data/bestball.db-shm
+data/bestball.db-wal
 data/csv/
 data/mapping/
 data/weeks/
 data/player_id_mapping.csv
+# adp_cache.db is intentionally NOT excluded — it ships with deploys (296 KB)
 
 # Secrets
 .env

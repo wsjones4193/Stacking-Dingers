@@ -17,7 +17,18 @@ from sqlmodel import Session, select
 
 from backend.constants import LOW_CONFIDENCE_THRESHOLD
 from backend.db.deps import get_session
-from backend.db.models import AdpPlayerSummary, AdpRoundComposition, AdpScarcityCache, AdpSnapshot, Draft, Pick, Player, WeeklyScore
+import sqlite3
+from pathlib import Path
+
+from backend.db.models import AdpSnapshot, Player, WeeklyScore
+
+# Path to the tiny pre-computed cache DB shipped with each deployment
+_ADP_CACHE_DB = Path(__file__).resolve().parent.parent.parent / "data" / "adp_cache.db"
+
+
+def _cache_conn():
+    """Return a read-only-friendly connection to adp_cache.db."""
+    return sqlite3.connect(str(_ADP_CACHE_DB))
 from backend.schemas import (
     AdpMovementPoint,
     AdpScatterPoint,
@@ -220,40 +231,34 @@ def adp_scarcity(
 
 # ---------------------------------------------------------------------------
 # GET /api/adp/leaderboard?season=2025&position=P
-# Pre-computed from picks table via scripts/precompute_adp.py
+# Reads from adp_cache.db (ships with each Railway deployment)
 # ---------------------------------------------------------------------------
 
 @router.get("/leaderboard", response_model=DataResponse)
 def adp_leaderboard(
-    session: SessionDep,
     season: int = Query(default=2025),
     position: Optional[str] = Query(default=None, description="P | IF | OF"),
 ):
     """Per-player ADP summary derived from actual draft picks."""
-    stmt = select(AdpPlayerSummary).where(AdpPlayerSummary.season == season)
+    conn = _cache_conn()
+    sql = "SELECT player_id, player_name, position, avg_pick, pick_std, ownership_pct, draft_count, total_season_drafts FROM adp_player_summary WHERE season=?"
+    params: list = [season]
     if position:
-        stmt = stmt.where(AdpPlayerSummary.position == position.upper())
-    stmt = stmt.order_by(AdpPlayerSummary.avg_pick)
-    rows = session.exec(stmt).all()
+        sql += " AND position=?"
+        params.append(position.upper())
+    sql += " ORDER BY avg_pick"
+    rows = conn.execute(sql, params).fetchall()
+    conn.close()
 
     data = [
         {
-            "player_id": r.player_id,
-            "player_name": r.player_name,
-            "position": r.position,
-            "avg_pick": round(r.avg_pick, 1),
-            "pick_std": round(r.pick_std, 1) if r.pick_std else None,
-            "ownership_pct": round(r.ownership_pct, 1),
-            "draft_count": r.draft_count,
-            "total_season_drafts": r.total_season_drafts,
+            "player_id": r[0], "player_name": r[1], "position": r[2],
+            "avg_pick": r[3], "pick_std": r[4],
+            "ownership_pct": r[5], "draft_count": r[6], "total_season_drafts": r[7],
         }
         for r in rows
     ]
-    return DataResponse(
-        data=data,
-        sample_size=len(data),
-        data_as_of=date.today().isoformat(),
-    )
+    return DataResponse(data=data, sample_size=len(data), data_as_of=date.today().isoformat())
 
 
 # ---------------------------------------------------------------------------
@@ -262,23 +267,18 @@ def adp_leaderboard(
 
 @router.get("/scarcity-cache", response_model=DataResponse)
 def adp_scarcity_cache(
-    session: SessionDep,
     season: int = Query(default=2025),
 ):
     """Pre-computed positional scarcity curves for a given season."""
-    rows = session.exec(
-        select(AdpScarcityCache)
-        .where(AdpScarcityCache.season == season)
-        .order_by(AdpScarcityCache.position, AdpScarcityCache.pick_number)
-    ).all()
+    conn = _cache_conn()
+    rows = conn.execute(
+        "SELECT season, position, pick_number, cumulative_pct FROM adp_scarcity_cache WHERE season=? ORDER BY position, pick_number",
+        [season],
+    ).fetchall()
+    conn.close()
 
     data = [
-        {
-            "season": r.season,
-            "position": r.position,
-            "pick_number": r.pick_number,
-            "cumulative_pct": r.cumulative_pct,
-        }
+        {"season": r[0], "position": r[1], "pick_number": r[2], "cumulative_pct": r[3]}
         for r in rows
     ]
     return DataResponse(data=data, sample_size=len(data), data_as_of=date.today().isoformat())
@@ -290,24 +290,18 @@ def adp_scarcity_cache(
 
 @router.get("/round-composition", response_model=DataResponse)
 def adp_round_composition(
-    session: SessionDep,
     season: int = Query(default=2025),
 ):
     """Pre-computed position breakdown per round for a given season."""
-    rows = session.exec(
-        select(AdpRoundComposition)
-        .where(AdpRoundComposition.season == season)
-        .order_by(AdpRoundComposition.round_number, AdpRoundComposition.position)
-    ).all()
+    conn = _cache_conn()
+    rows = conn.execute(
+        "SELECT season, round_number, position, count, pct_of_round FROM adp_round_composition WHERE season=? ORDER BY round_number, position",
+        [season],
+    ).fetchall()
+    conn.close()
 
     data = [
-        {
-            "season": r.season,
-            "round_number": r.round_number,
-            "position": r.position,
-            "count": r.count,
-            "pct_of_round": r.pct_of_round,
-        }
+        {"season": r[0], "round_number": r[1], "position": r[2], "count": r[3], "pct_of_round": r[4]}
         for r in rows
     ]
     return DataResponse(data=data, sample_size=len(data), data_as_of=date.today().isoformat())
