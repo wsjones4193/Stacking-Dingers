@@ -7,6 +7,9 @@
 import type {
   AdpAccuracyEntry,
   AdpMovementPoint,
+  AdpPlayerSummaryEntry,
+  AdpRoundCompositionEntry,
+  AdpScarcityCacheEntry,
   AdpScatterPoint,
   ArticleDetail,
   ArticleListResponse,
@@ -110,6 +113,15 @@ export const getAdpMovement = (filters: GlobalFilters & { player_ids?: string })
 
 export const getAdpScarcity = (filters: GlobalFilters) =>
   get<DataResponse<ScarcityPoint[]>>("/api/adp/scarcity", filters);
+
+export const getAdpLeaderboard = (season: number, position?: string) =>
+  get<DataResponse<AdpPlayerSummaryEntry[]>>("/api/adp/leaderboard", { season, position });
+
+export const getAdpScarcityCache = (season: number) =>
+  get<DataResponse<AdpScarcityCacheEntry[]>>("/api/adp/scarcity-cache", { season });
+
+export const getAdpRoundComposition = (season: number) =>
+  get<DataResponse<AdpRoundCompositionEntry[]>>("/api/adp/round-composition", { season });
 
 // ---------------------------------------------------------------------------
 // Leaderboard

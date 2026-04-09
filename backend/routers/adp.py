@@ -17,7 +17,7 @@ from sqlmodel import Session, select
 
 from backend.constants import LOW_CONFIDENCE_THRESHOLD
 from backend.db.deps import get_session
-from backend.db.models import AdpSnapshot, Draft, Pick, Player, WeeklyScore
+from backend.db.models import AdpPlayerSummary, AdpRoundComposition, AdpScarcityCache, AdpSnapshot, Draft, Pick, Player, WeeklyScore
 from backend.schemas import (
     AdpMovementPoint,
     AdpScatterPoint,
@@ -216,3 +216,98 @@ def adp_scarcity(
             curves.append(PositionalScarcityCurve(position=pos, season=s, picks=picks))
 
     return DataResponse(data=curves, data_as_of=date.today().isoformat())
+
+
+# ---------------------------------------------------------------------------
+# GET /api/adp/leaderboard?season=2025&position=P
+# Pre-computed from picks table via scripts/precompute_adp.py
+# ---------------------------------------------------------------------------
+
+@router.get("/leaderboard", response_model=DataResponse)
+def adp_leaderboard(
+    session: SessionDep,
+    season: int = Query(default=2025),
+    position: Optional[str] = Query(default=None, description="P | IF | OF"),
+):
+    """Per-player ADP summary derived from actual draft picks."""
+    stmt = select(AdpPlayerSummary).where(AdpPlayerSummary.season == season)
+    if position:
+        stmt = stmt.where(AdpPlayerSummary.position == position.upper())
+    stmt = stmt.order_by(AdpPlayerSummary.avg_pick)
+    rows = session.exec(stmt).all()
+
+    data = [
+        {
+            "player_id": r.player_id,
+            "player_name": r.player_name,
+            "position": r.position,
+            "avg_pick": round(r.avg_pick, 1),
+            "pick_std": round(r.pick_std, 1) if r.pick_std else None,
+            "ownership_pct": round(r.ownership_pct, 1),
+            "draft_count": r.draft_count,
+            "total_season_drafts": r.total_season_drafts,
+        }
+        for r in rows
+    ]
+    return DataResponse(
+        data=data,
+        sample_size=len(data),
+        data_as_of=date.today().isoformat(),
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /api/adp/scarcity-cache?season=2025
+# ---------------------------------------------------------------------------
+
+@router.get("/scarcity-cache", response_model=DataResponse)
+def adp_scarcity_cache(
+    session: SessionDep,
+    season: int = Query(default=2025),
+):
+    """Pre-computed positional scarcity curves for a given season."""
+    rows = session.exec(
+        select(AdpScarcityCache)
+        .where(AdpScarcityCache.season == season)
+        .order_by(AdpScarcityCache.position, AdpScarcityCache.pick_number)
+    ).all()
+
+    data = [
+        {
+            "season": r.season,
+            "position": r.position,
+            "pick_number": r.pick_number,
+            "cumulative_pct": r.cumulative_pct,
+        }
+        for r in rows
+    ]
+    return DataResponse(data=data, sample_size=len(data), data_as_of=date.today().isoformat())
+
+
+# ---------------------------------------------------------------------------
+# GET /api/adp/round-composition?season=2025
+# ---------------------------------------------------------------------------
+
+@router.get("/round-composition", response_model=DataResponse)
+def adp_round_composition(
+    session: SessionDep,
+    season: int = Query(default=2025),
+):
+    """Pre-computed position breakdown per round for a given season."""
+    rows = session.exec(
+        select(AdpRoundComposition)
+        .where(AdpRoundComposition.season == season)
+        .order_by(AdpRoundComposition.round_number, AdpRoundComposition.position)
+    ).all()
+
+    data = [
+        {
+            "season": r.season,
+            "round_number": r.round_number,
+            "position": r.position,
+            "count": r.count,
+            "pct_of_round": r.pct_of_round,
+        }
+        for r in rows
+    ]
+    return DataResponse(data=data, sample_size=len(data), data_as_of=date.today().isoformat())

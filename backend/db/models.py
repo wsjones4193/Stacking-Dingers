@@ -90,6 +90,8 @@ class WeeklyScore(SQLModel, table=True):
     is_starter: bool = Field(default=False)
     is_flex: bool = Field(default=False)
     is_bench: bool = Field(default=True)
+    replacement_score: Optional[float] = None  # bench replacement level for this position group
+    bpcor: Optional[float] = None              # max(0, score - replacement) if starter/flex, else 0
 
 
 # ---------------------------------------------------------------------------
@@ -314,6 +316,55 @@ class ComboProjection(SQLModel, table=True):
     lift: Optional[float] = None               # confidence / expected independent rate
     projected_pair_count: Optional[float] = None
     pair_rate: Optional[float] = None          # % of A's rosters that also have B
+
+
+# ---------------------------------------------------------------------------
+# Pre-computed ADP tables (populated by scripts/precompute_adp.py)
+# ---------------------------------------------------------------------------
+
+class AdpPlayerSummary(SQLModel, table=True):
+    __tablename__ = "adp_player_summary"
+    __table_args__ = (
+        UniqueConstraint("player_id", "season"),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    player_id: int = Field(foreign_key="players.player_id", index=True)
+    season: int = Field(index=True)
+    player_name: str
+    position: str
+    avg_pick: float
+    pick_std: Optional[float] = None
+    ownership_pct: float        # % of season drafts that drafted this player
+    draft_count: int            # times drafted
+    total_season_drafts: int    # total drafts in season (denominator)
+
+
+class AdpScarcityCache(SQLModel, table=True):
+    __tablename__ = "adp_scarcity_cache"
+    __table_args__ = (
+        UniqueConstraint("season", "position", "pick_number"),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    season: int = Field(index=True)
+    position: str
+    pick_number: int
+    cumulative_pct: float       # % of that position's total picks made by this pick number
+
+
+class AdpRoundComposition(SQLModel, table=True):
+    __tablename__ = "adp_round_composition"
+    __table_args__ = (
+        UniqueConstraint("season", "round_number", "position"),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    season: int = Field(index=True)
+    round_number: int
+    position: str
+    count: int
+    pct_of_round: float         # % of all picks in this round taken at this position
 
 
 # ---------------------------------------------------------------------------

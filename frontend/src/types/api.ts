@@ -331,6 +331,36 @@ export interface EpisodeListResponse {
 }
 
 // ---------------------------------------------------------------------------
+// ADP pre-computed (from picks table)
+// ---------------------------------------------------------------------------
+
+export interface AdpPlayerSummaryEntry {
+  player_id: number;
+  player_name: string;
+  position: string;
+  avg_pick: number;
+  pick_std: number | null;
+  ownership_pct: number;
+  draft_count: number;
+  total_season_drafts: number;
+}
+
+export interface AdpScarcityCacheEntry {
+  season: number;
+  position: string;
+  pick_number: number;
+  cumulative_pct: number;
+}
+
+export interface AdpRoundCompositionEntry {
+  season: number;
+  round_number: number;
+  position: string;
+  count: number;
+  pct_of_round: number;
+}
+
+// ---------------------------------------------------------------------------
 // Filter params (shared across endpoints)
 // ---------------------------------------------------------------------------
 
