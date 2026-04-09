@@ -409,14 +409,43 @@ def trigger_precompute_adp():
     """Run the ADP precompute script directly on the server against its own DB."""
     import subprocess
     import sys
+    from pathlib import Path as _Path
+    # Always run from project root so data/bestball.db resolves correctly
+    project_root = _Path(__file__).resolve().parent.parent.parent
     result = subprocess.run(
         [sys.executable, "scripts/precompute_adp.py"],
         capture_output=True,
         text=True,
         timeout=300,
+        cwd=str(project_root),
     )
     return {
         "returncode": result.returncode,
         "stdout": result.stdout,
         "stderr": result.stderr,
+        "cwd": str(project_root),
     }
+
+
+@router.get("/db-info")
+def db_info():
+    """Diagnostic: show DB path, size, and row counts for key tables."""
+    from pathlib import Path as _Path
+    import sqlite3 as _sqlite3
+    project_root = _Path(__file__).resolve().parent.parent.parent
+    db_path = project_root / "data" / "bestball.db"
+    info = {
+        "db_path": str(db_path),
+        "exists": db_path.exists(),
+        "size_mb": round(db_path.stat().st_size / 1_000_000, 1) if db_path.exists() else None,
+    }
+    if db_path.exists():
+        conn = _sqlite3.connect(str(db_path))
+        for table in ["picks", "drafts", "players", "adp_player_summary", "adp_scarcity_cache"]:
+            try:
+                row = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
+                info[f"{table}_rows"] = row[0]
+            except Exception as e:
+                info[f"{table}_rows"] = str(e)
+        conn.close()
+    return info
