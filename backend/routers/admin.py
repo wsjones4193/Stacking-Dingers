@@ -398,3 +398,25 @@ def delete_episode(episode_id: int, session: SessionDep):
         raise HTTPException(status_code=404, detail="Episode not found")
     session.delete(episode)
     session.commit()
+
+
+# ---------------------------------------------------------------------------
+# POST /api/admin/precompute-adp — run precompute script on the server
+# ---------------------------------------------------------------------------
+
+@router.post("/precompute-adp")
+def trigger_precompute_adp():
+    """Run the ADP precompute script directly on the server against its own DB."""
+    import subprocess
+    import sys
+    result = subprocess.run(
+        [sys.executable, "scripts/precompute_adp.py"],
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+    return {
+        "returncode": result.returncode,
+        "stdout": result.stdout,
+        "stderr": result.stderr,
+    }
