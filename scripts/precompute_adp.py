@@ -22,10 +22,52 @@ import pandas as pd
 DB_PATH = Path("data/bestball.db")
 
 
+def _ensure_tables(conn: sqlite3.Connection) -> None:
+    """Create pre-computed ADP tables if they don't already exist."""
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS adp_player_summary (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            player_id INTEGER NOT NULL REFERENCES players(player_id),
+            season INTEGER NOT NULL,
+            player_name TEXT NOT NULL,
+            position TEXT NOT NULL,
+            avg_pick REAL NOT NULL,
+            pick_std REAL,
+            ownership_pct REAL NOT NULL,
+            draft_count INTEGER NOT NULL,
+            total_season_drafts INTEGER NOT NULL,
+            UNIQUE(player_id, season)
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS adp_scarcity_cache (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            season INTEGER NOT NULL,
+            position TEXT NOT NULL,
+            pick_number INTEGER NOT NULL,
+            cumulative_pct REAL NOT NULL,
+            UNIQUE(season, position, pick_number)
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS adp_round_composition (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            season INTEGER NOT NULL,
+            round_number INTEGER NOT NULL,
+            position TEXT NOT NULL,
+            count INTEGER NOT NULL,
+            pct_of_round REAL NOT NULL,
+            UNIQUE(season, round_number, position)
+        )
+    """)
+    conn.commit()
+
+
 def main() -> None:
     print(f"Connecting to {DB_PATH} ...")
     conn = sqlite3.connect(DB_PATH, timeout=60)
     conn.execute("PRAGMA busy_timeout=30000")
+    _ensure_tables(conn)
 
     # ------------------------------------------------------------------
     # Load raw picks with player position + season
