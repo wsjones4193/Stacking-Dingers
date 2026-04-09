@@ -175,12 +175,12 @@ export const adminListArticles = () =>
 
 export const adminCreateArticle = (body: {
   title: string; author: string; published_date: string;
-  excerpt: string; content_html: string; thumbnail_url?: string; slug: string;
+  excerpt: string; content_html: string; thumbnail_url?: string; slug: string; category?: string;
 }) => post<{ article_id: number; slug: string }>("/api/admin/articles", body);
 
 export const adminUpdateArticle = (articleId: number, body: Partial<{
   title: string; author: string; published_date: string;
-  excerpt: string; content_html: string; thumbnail_url: string; slug: string;
+  excerpt: string; content_html: string; thumbnail_url: string; slug: string; category: string;
 }>) => patch<{ article_id: number; slug: string }>(`/api/admin/articles/${articleId}`, body);
 
 export const adminDeleteArticle = (articleId: number) =>

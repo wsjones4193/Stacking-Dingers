@@ -275,6 +275,7 @@ class Article(SQLModel, table=True):
     excerpt: str                # plain-text blurb for card view
     thumbnail_url: Optional[str] = None
     slug: str = Field(unique=True, index=True)   # URL-friendly identifier
+    category: Optional[str] = None   # "data analysis" | "strategy" | "adp" | "other"
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 

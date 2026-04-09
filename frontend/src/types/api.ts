@@ -294,6 +294,7 @@ export interface ArticleSummary {
   excerpt: string;
   thumbnail_url: string | null;
   slug: string;
+  category: string | null;
 }
 
 export interface ArticleDetail extends ArticleSummary {

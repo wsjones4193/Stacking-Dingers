@@ -240,6 +240,7 @@ class ArticleCreate(BaseModel):
     content_html: str
     thumbnail_url: Optional[str] = None
     slug: str
+    category: Optional[str] = None
 
 
 class ArticleUpdate(BaseModel):
@@ -250,6 +251,7 @@ class ArticleUpdate(BaseModel):
     content_html: Optional[str] = None
     thumbnail_url: Optional[str] = None
     slug: Optional[str] = None
+    category: Optional[str] = None
 
 
 @router.post("/articles", status_code=201)
@@ -268,6 +270,7 @@ def create_article(body: ArticleCreate, session: SessionDep):
         content_html=body.content_html,
         thumbnail_url=body.thumbnail_url,
         slug=body.slug,
+        category=body.category,
         created_at=_datetime.utcnow(),
         updated_at=_datetime.utcnow(),
     )
@@ -299,6 +302,8 @@ def update_article(article_id: int, body: ArticleUpdate, session: SessionDep):
         article.thumbnail_url = body.thumbnail_url
     if body.slug is not None:
         article.slug = body.slug
+    if body.category is not None:
+        article.category = body.category
     article.updated_at = _datetime.utcnow()
 
     session.add(article)

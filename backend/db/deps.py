@@ -24,6 +24,7 @@ _engine = None
 # Applied once on startup — safe to run repeatedly (IF NOT EXISTS check).
 _MIGRATIONS = [
     ("podcast_episodes", "series", "TEXT"),
+    ("articles", "category", "TEXT"),
 ]
 
 

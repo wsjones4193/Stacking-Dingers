@@ -35,6 +35,7 @@ class ArticleSummary(BaseModel):
     excerpt: str
     thumbnail_url: str | None
     slug: str
+    category: str | None
 
 
 class ArticleDetail(BaseModel):
@@ -45,6 +46,7 @@ class ArticleDetail(BaseModel):
     excerpt: str
     thumbnail_url: str | None
     slug: str
+    category: str | None
     content_html: str
     updated_at: str
 
@@ -100,6 +102,7 @@ def list_articles(
                 excerpt=a.excerpt,
                 thumbnail_url=a.thumbnail_url,
                 slug=a.slug,
+                category=a.category,
             )
             for a in page_articles
         ],
@@ -128,6 +131,7 @@ def get_article(slug: str, session: SessionDep):
         excerpt=article.excerpt,
         thumbnail_url=article.thumbnail_url,
         slug=article.slug,
+        category=article.category,
         content_html=article.content_html,
         updated_at=article.updated_at.isoformat(),
     )

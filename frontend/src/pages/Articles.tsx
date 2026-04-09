@@ -28,6 +28,17 @@ import LoadingSpinner from "@/components/LoadingSpinner";
 
 const ADMIN_PASSWORD = "DingersStacked";
 
+const CATEGORIES = ["Data Analysis", "Strategy", "ADP", "Other"] as const;
+type Category = typeof CATEGORIES[number];
+
+const CATEGORY_ORDER: Category[] = ["Data Analysis", "Strategy", "ADP", "Other"];
+
+function normalizeCategory(raw: string | null): Category {
+  if (!raw) return "Other";
+  const match = CATEGORIES.find((c) => c.toLowerCase() === raw.toLowerCase());
+  return match ?? "Other";
+}
+
 function slugify(str: string) {
   return str.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
@@ -156,6 +167,7 @@ type ArticleForm = {
   excerpt: string;
   thumbnail_url: string;
   slug: string;
+  category: Category;
 };
 
 function ArticleEditorModal({
@@ -175,6 +187,7 @@ function ArticleEditorModal({
     excerpt: existing?.excerpt ?? "",
     thumbnail_url: existing?.thumbnail_url ?? "",
     slug: existing?.slug ?? "",
+    category: normalizeCategory(existing?.category ?? null),
   });
   const [contentHtml, setContentHtml] = useState(existing?.content_html ?? "");
   const [saving, setSaving] = useState(false);
@@ -194,6 +207,7 @@ function ArticleEditorModal({
           excerpt: form.excerpt,
           thumbnail_url: form.thumbnail_url || undefined,
           slug: form.slug || slugify(form.title),
+          category: form.category,
           ...(contentHtml ? { content_html: contentHtml } : {}),
         });
       } else {
@@ -205,6 +219,7 @@ function ArticleEditorModal({
           content_html: contentHtml,
           thumbnail_url: form.thumbnail_url || undefined,
           slug: form.slug || slugify(form.title),
+          category: form.category,
         });
       }
       onSaved();
@@ -266,6 +281,26 @@ function ArticleEditorModal({
               onChange={(e) => setForm((f) => ({ ...f, excerpt: e.target.value }))}
               placeholder="One or two sentence summary"
             />
+          </div>
+
+          <div>
+            <label className="text-xs text-muted-foreground block mb-1">Category <span className="text-destructive">*</span></label>
+            <div className="flex gap-2 flex-wrap">
+              {CATEGORIES.map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, category: cat }))}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                    form.category === cat
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "border-border text-muted-foreground hover:bg-accent"
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -453,19 +488,30 @@ function ArticleList() {
             <p className="text-muted-foreground text-sm">No articles published yet.</p>
           ) : (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                {articles.map((a) => (
-                  <ArticleCard
-                    key={a.article_id}
-                    article={a}
-                    adminMode={adminMode}
-                    onEdit={handleEdit}
-                    onDelete={handleDelete}
-                  />
-                ))}
-              </div>
+              {CATEGORY_ORDER.map((cat) => {
+                const group = articles.filter((a) => normalizeCategory(a.category) === cat);
+                if (group.length === 0) return null;
+                return (
+                  <div key={cat} className="mb-10">
+                    <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60 mb-4">
+                      {cat}
+                    </h2>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                      {group.map((a) => (
+                        <ArticleCard
+                          key={a.article_id}
+                          article={a}
+                          adminMode={adminMode}
+                          onEdit={handleEdit}
+                          onDelete={handleDelete}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
               {totalPages > 1 && (
-                <div className="flex items-center justify-center gap-3 mt-8">
+                <div className="flex items-center justify-center gap-3 mt-4">
                   <button
                     className="text-sm px-3 py-1.5 rounded border border-border hover:bg-accent disabled:opacity-40"
                     onClick={() => setPage((p) => p - 1)}
