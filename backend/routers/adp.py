@@ -272,13 +272,13 @@ def adp_scarcity_cache(
     """Pre-computed positional scarcity curves for a given season."""
     conn = _cache_conn()
     rows = conn.execute(
-        "SELECT season, position, pick_number, cumulative_pct FROM adp_scarcity_cache WHERE season=? ORDER BY position, pick_number",
+        "SELECT season, position, pick_number, cumulative_pct, avg_per_draft FROM adp_scarcity_cache WHERE season=? ORDER BY position, pick_number",
         [season],
     ).fetchall()
     conn.close()
 
     data = [
-        {"season": r[0], "position": r[1], "pick_number": r[2], "cumulative_pct": r[3]}
+        {"season": r[0], "position": r[1], "pick_number": r[2], "cumulative_pct": r[3], "avg_per_draft": r[4]}
         for r in rows
     ]
     return DataResponse(data=data, sample_size=len(data), data_as_of=date.today().isoformat())

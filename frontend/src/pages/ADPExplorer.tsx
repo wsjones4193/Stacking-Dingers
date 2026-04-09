@@ -1,8 +1,9 @@
 /**
- * ADP Explorer — three tabs built from pre-computed historical draft data:
+ * ADP Explorer — four tabs built from pre-computed historical draft data:
  *   1. ADP Leaderboard — sortable table: who went where, ownership %, consistency
- *   2. Positional Scarcity — cumulative % of each position drafted by pick number
+ *   2. Positional Scarcity — avg cumulative count of each position by pick number
  *   3. Round Composition — stacked bar: what positions went in each round
+ *   4. ADP vs Draft % — ownership % vs avg pick scatter by position
  */
 import { useState } from "react";
 import {
@@ -13,9 +14,12 @@ import {
   Line,
   LineChart,
   ResponsiveContainer,
+  Scatter,
+  ScatterChart,
   Tooltip,
   XAxis,
   YAxis,
+  ZAxis,
 } from "recharts";
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
@@ -211,7 +215,7 @@ function LeaderboardTab({ season, position }: { season: number; position: string
 }
 
 // ---------------------------------------------------------------------------
-// Tab 2: Positional Scarcity
+// Tab 2: Positional Scarcity — avg cumulative count per draft
 // ---------------------------------------------------------------------------
 
 function ScarcityTab({ season }: { season: number }) {
@@ -229,53 +233,61 @@ function ScarcityTab({ season }: { season: number }) {
     );
   }
 
-  // Sample every 5 pick numbers for cleaner chart
+  const positions = ["P", "IF", "OF"];
+
+  // Sample every 5 picks for cleaner chart
   const sampled = data.data.filter((d) => d.pick_number % 5 === 0 || d.pick_number === 1);
 
-  // Reshape: {pick_number, P, IF, OF}
+  // Reshape: {pick_number, P: avg, IF: avg, OF: avg}
   const byPick: Record<number, Record<string, number>> = {};
   for (const row of sampled) {
     if (!byPick[row.pick_number]) byPick[row.pick_number] = { pick_number: row.pick_number };
-    byPick[row.pick_number][row.position] = row.cumulative_pct;
+    byPick[row.pick_number][row.position] = row.avg_per_draft;
   }
   const chartData = Object.values(byPick).sort((a, b) => a.pick_number - b.pick_number);
 
-  // Find 50% and 90% thresholds per position for annotation
-  const positions = ["P", "IF", "OF"];
-  const thresholds: Record<string, { p50: number | null; p90: number | null }> = {};
+  // Max avg count per position (at pick 240) for summary cards
+  const maxByPos: Record<string, number> = {};
+  for (const pos of positions) {
+    const last = data.data.filter((d) => d.position === pos).at(-1);
+    maxByPos[pos] = last?.avg_per_draft ?? 0;
+  }
+
+  // Pick where avg crosses round milestones (1, 2, 3 ... players of that position)
+  const milestones: Record<string, { pick: number; count: number }[]> = {};
   for (const pos of positions) {
     const posRows = data.data.filter((d) => d.position === pos);
-    const p50row = posRows.find((d) => d.cumulative_pct >= 50);
-    const p90row = posRows.find((d) => d.cumulative_pct >= 90);
-    thresholds[pos] = {
-      p50: p50row?.pick_number ?? null,
-      p90: p90row?.pick_number ?? null,
-    };
+    const max = Math.floor(maxByPos[pos]);
+    milestones[pos] = [];
+    for (let n = 1; n <= Math.min(max, 5); n++) {
+      const row = posRows.find((d) => d.avg_per_draft >= n);
+      if (row) milestones[pos].push({ pick: row.pick_number, count: n });
+    }
   }
 
   return (
     <div className="space-y-4">
       <p className="text-xs text-muted-foreground">
-        By pick X, what percentage of that season's total picks at each position have already been made?
-        Steep curves = position concentrates early; flat = spread throughout the draft.
+        Average cumulative number of players at each position drafted per team by pick X.
+        Shows when the draft field starts taking a position — and when supply runs dry.
       </p>
 
-      {/* Threshold summary cards */}
+      {/* Milestone cards */}
       <div className="grid grid-cols-3 gap-3">
         {positions.map((pos) => (
           <Card key={pos}>
             <CardHeader className="pb-1 pt-3 px-4">
-              <CardTitle className="text-sm" style={{ color: POSITION_COLORS[pos] }}>{pos}</CardTitle>
+              <CardTitle className="text-sm" style={{ color: POSITION_COLORS[pos] }}>
+                {pos} <span className="text-muted-foreground font-normal text-xs">avg {maxByPos[pos].toFixed(1)} per roster</span>
+              </CardTitle>
             </CardHeader>
             <CardContent className="px-4 pb-3 text-xs space-y-1">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">50% gone by pick</span>
-                <span className="font-semibold">{thresholds[pos].p50 ?? "—"}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">90% gone by pick</span>
-                <span className="font-semibold">{thresholds[pos].p90 ?? "—"}</span>
-              </div>
+              {milestones[pos].map(({ pick, count }) => (
+                <div key={count} className="flex justify-between">
+                  <span className="text-muted-foreground">{count}st drafted by pick</span>
+                  <span className="font-semibold">{pick}</span>
+                </div>
+              ))}
             </CardContent>
           </Card>
         ))}
@@ -283,11 +295,11 @@ function ScarcityTab({ season }: { season: number }) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Cumulative % Drafted by Pick Number — {season}</CardTitle>
+          <CardTitle>Avg Cumulative {positions.join(" / ")} Drafted per Team — {season}</CardTitle>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={340}>
-            <LineChart data={chartData} margin={{ top: 4, right: 8, bottom: 16, left: -10 }}>
+            <LineChart data={chartData} margin={{ top: 4, right: 8, bottom: 16, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis
                 dataKey="pick_number"
@@ -295,11 +307,14 @@ function ScarcityTab({ season }: { season: number }) {
                 tick={{ fontSize: 11 }}
               />
               <YAxis
-                tickFormatter={(v) => `${v}%`}
+                tickFormatter={(v) => v.toFixed(1)}
                 tick={{ fontSize: 11 }}
-                domain={[0, 100]}
+                label={{ value: "Avg # Drafted", angle: -90, position: "insideLeft", offset: 10, fontSize: 11 }}
               />
-              <Tooltip formatter={(v: number) => `${v.toFixed(1)}%`} labelFormatter={(l) => `Pick ${l}`} />
+              <Tooltip
+                formatter={(v: number, name: string) => [`${v.toFixed(2)} players`, name]}
+                labelFormatter={(l) => `Pick ${l}`}
+              />
               <Legend verticalAlign="top" />
               {positions.map((pos) => (
                 <Line
@@ -316,6 +331,101 @@ function ScarcityTab({ season }: { season: number }) {
         </CardContent>
       </Card>
 
+      <DataAsOf dataAsOf={data.data_as_of} />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Tab 4: ADP vs Draft % scatter
+// ---------------------------------------------------------------------------
+
+function AdpVsDraftRateTab({ season, position }: { season: number; position: string }) {
+  const { data, loading, error } = useAdpLeaderboard(
+    season,
+    position === "All" ? undefined : position
+  );
+
+  if (loading) return <LoadingSpinner />;
+  if (error) return <p className="py-8 text-center text-sm text-destructive">{error}</p>;
+  if (!data) return null;
+
+  if (data.data.length === 0) {
+    return (
+      <div className="py-12 text-center text-sm text-muted-foreground">
+        No data for {season}.
+      </div>
+    );
+  }
+
+  // Split into per-position datasets for color coding
+  const byPos: Record<string, typeof data.data> = {};
+  for (const p of data.data) {
+    if (!byPos[p.position]) byPos[p.position] = [];
+    byPos[p.position].push(p);
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-muted-foreground">
+        Each dot is a player: X = average draft position, Y = ownership % across all {season} rosters.
+        Earlier-drafted players cluster top-left; deeper picks spread bottom-right.
+      </p>
+      <Card>
+        <CardHeader>
+          <CardTitle>ADP vs Ownership % — {season}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={420}>
+            <ScatterChart margin={{ top: 8, right: 16, bottom: 24, left: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis
+                dataKey="avg_pick"
+                name="Avg Pick"
+                type="number"
+                domain={[1, 240]}
+                label={{ value: "Avg Draft Pick", position: "insideBottom", offset: -12, fontSize: 11 }}
+                tick={{ fontSize: 11 }}
+              />
+              <YAxis
+                dataKey="ownership_pct"
+                name="Ownership %"
+                type="number"
+                tickFormatter={(v) => `${v}%`}
+                tick={{ fontSize: 11 }}
+                label={{ value: "Ownership %", angle: -90, position: "insideLeft", offset: 10, fontSize: 11 }}
+              />
+              <ZAxis range={[24, 24]} />
+              <Tooltip
+                cursor={{ strokeDasharray: "3 3" }}
+                content={({ active, payload }) => {
+                  if (!active || !payload?.length) return null;
+                  const p = payload[0].payload;
+                  return (
+                    <div className="rounded-md border bg-popover p-2 text-xs shadow-md">
+                      <p className="font-semibold">{p.player_name}</p>
+                      <p className="text-muted-foreground">{p.position}</p>
+                      <p>Avg pick: {p.avg_pick?.toFixed(1)}</p>
+                      <p>Ownership: {p.ownership_pct?.toFixed(1)}%</p>
+                      <p className="text-muted-foreground">±{p.pick_std?.toFixed(1)} std dev</p>
+                    </div>
+                  );
+                }}
+              />
+              <Legend verticalAlign="top" />
+              {Object.entries(byPos).map(([pos, pts]) => (
+                <Scatter
+                  key={pos}
+                  name={pos}
+                  data={pts}
+                  fill={POSITION_COLORS[pos] ?? "hsl(215 20% 60%)"}
+                  fillOpacity={0.7}
+                />
+              ))}
+            </ScatterChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
       <DataAsOf dataAsOf={data.data_as_of} />
     </div>
   );
@@ -471,6 +581,7 @@ export default function ADPExplorer() {
           <TabsTrigger value="leaderboard">ADP Leaderboard</TabsTrigger>
           <TabsTrigger value="scarcity">Positional Scarcity</TabsTrigger>
           <TabsTrigger value="composition">Round Composition</TabsTrigger>
+          <TabsTrigger value="adp-draft-rate">ADP vs Draft %</TabsTrigger>
         </TabsList>
 
         <TabsContent value="leaderboard">
@@ -483,6 +594,10 @@ export default function ADPExplorer() {
 
         <TabsContent value="composition">
           <RoundCompositionTab season={season} />
+        </TabsContent>
+
+        <TabsContent value="adp-draft-rate">
+          <AdpVsDraftRateTab season={season} position={position} />
         </TabsContent>
       </Tabs>
     </div>

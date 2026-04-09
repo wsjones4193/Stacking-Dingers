@@ -351,6 +351,7 @@ class AdpScarcityCache(SQLModel, table=True):
     position: str
     pick_number: int
     cumulative_pct: float       # % of that position's total picks made by this pick number
+    avg_per_draft: float = Field(default=0.0)  # avg count of this position selected per draft by this pick
 
 
 class AdpRoundComposition(SQLModel, table=True):

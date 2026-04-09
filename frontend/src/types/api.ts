@@ -350,6 +350,7 @@ export interface AdpScarcityCacheEntry {
   position: string;
   pick_number: number;
   cumulative_pct: number;
+  avg_per_draft: number;
 }
 
 export interface AdpRoundCompositionEntry {

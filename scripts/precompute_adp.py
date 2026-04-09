@@ -46,6 +46,7 @@ def _ensure_tables(conn: sqlite3.Connection) -> None:
             position TEXT NOT NULL,
             pick_number INTEGER NOT NULL,
             cumulative_pct REAL NOT NULL,
+            avg_per_draft REAL NOT NULL DEFAULT 0,
             UNIQUE(season, position, pick_number)
         )
     """)
@@ -135,6 +136,7 @@ def main() -> None:
 
     for season in picks_df["season"].unique():
         season_picks = picks_df[picks_df["season"] == season]
+        total_drafts = int(season_draft_counts[season])
 
         for position in ["P", "IF", "OF"]:
             pos_picks = season_picks[season_picks["position"] == position]["pick_number"]
@@ -143,13 +145,14 @@ def main() -> None:
                 continue
 
             for pick_num in range(1, 241):
-                cumulative = (pos_picks <= pick_num).sum()
+                cumulative = int((pos_picks <= pick_num).sum())
                 scarcity_rows.append(
                     {
                         "season": season,
                         "position": position,
                         "pick_number": pick_num,
                         "cumulative_pct": round(cumulative / total * 100, 2),
+                        "avg_per_draft": round(cumulative / total_drafts, 3),
                     }
                 )
 
