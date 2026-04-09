@@ -8,9 +8,8 @@ import { getPodcasts } from "@/lib/api";
 import type { PodcastEpisode } from "@/types/api";
 import LoadingSpinner from "@/components/LoadingSpinner";
 
-// Placeholder links — replace with real URLs once confirmed
-const APPLE_PODCASTS_URL = "https://podcasts.apple.com";
-const SPOTIFY_URL = "https://open.spotify.com";
+const APPLE_PODCASTS_URL = "https://podcasts.apple.com/us/podcast/the-stacking-dingers-show/id1789404722";
+const SPOTIFY_URL = "https://open.spotify.com/show/2gdPiN3PTfjpagVZMmrk9r";
 
 const PAGE_SIZE = 12;
 
