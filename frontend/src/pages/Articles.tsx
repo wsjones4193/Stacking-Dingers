@@ -1,11 +1,11 @@
 /**
  * Articles page — public list/detail view with a floating admin button
- * for creating articles behind a simple password gate.
+ * for creating, editing, and deleting articles behind a simple password gate.
  * Routes: /articles (list) and /articles/:slug (detail).
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Calendar, Plus, User, X } from "lucide-react";
+import { ArrowLeft, Calendar, Pencil, Plus, Trash2, User, X } from "lucide-react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { Image } from "@tiptap/extension-image";
@@ -13,7 +13,13 @@ import { Table } from "@tiptap/extension-table";
 import { TableRow } from "@tiptap/extension-table-row";
 import { TableCell } from "@tiptap/extension-table-cell";
 import { TableHeader } from "@tiptap/extension-table-header";
-import { getArticles, getArticle, adminCreateArticle } from "@/lib/api";
+import {
+  getArticles,
+  getArticle,
+  adminCreateArticle,
+  adminUpdateArticle,
+  adminDeleteArticle,
+} from "@/lib/api";
 import type { ArticleSummary, ArticleDetail } from "@/types/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,7 +36,13 @@ function slugify(str: string) {
 // Rich text editor
 // ---------------------------------------------------------------------------
 
-function ArticleEditor({ onChange }: { onChange: (html: string) => void }) {
+function ArticleEditor({
+  initialHtml,
+  onChange,
+}: {
+  initialHtml?: string;
+  onChange: (html: string) => void;
+}) {
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -40,7 +52,7 @@ function ArticleEditor({ onChange }: { onChange: (html: string) => void }) {
       TableHeader,
       TableCell,
     ],
-    content: "",
+    content: initialHtml ?? "",
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
   });
 
@@ -84,7 +96,13 @@ function ArticleEditor({ onChange }: { onChange: (html: string) => void }) {
 // Password gate modal
 // ---------------------------------------------------------------------------
 
-function PasswordModal({ onSuccess, onClose }: { onSuccess: () => void; onClose: () => void }) {
+function PasswordModal({
+  onSuccess,
+  onClose,
+}: {
+  onSuccess: () => void;
+  onClose: () => void;
+}) {
   const [value, setValue] = useState("");
   const [error, setError] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -128,7 +146,7 @@ function PasswordModal({ onSuccess, onClose }: { onSuccess: () => void; onClose:
 }
 
 // ---------------------------------------------------------------------------
-// Article editor modal
+// Article editor modal (create + edit)
 // ---------------------------------------------------------------------------
 
 type ArticleForm = {
@@ -140,18 +158,25 @@ type ArticleForm = {
   slug: string;
 };
 
-const EMPTY_FORM: ArticleForm = {
-  title: "",
-  author: "",
-  published_date: new Date().toISOString().slice(0, 10),
-  excerpt: "",
-  thumbnail_url: "",
-  slug: "",
-};
-
-function ArticleEditorModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
-  const [form, setForm] = useState<ArticleForm>(EMPTY_FORM);
-  const [contentHtml, setContentHtml] = useState("");
+function ArticleEditorModal({
+  existing,
+  onClose,
+  onSaved,
+}: {
+  existing?: ArticleSummary & { content_html?: string };
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const isEdit = !!existing;
+  const [form, setForm] = useState<ArticleForm>({
+    title: existing?.title ?? "",
+    author: existing?.author ?? "",
+    published_date: existing?.published_date?.slice(0, 10) ?? new Date().toISOString().slice(0, 10),
+    excerpt: existing?.excerpt ?? "",
+    thumbnail_url: existing?.thumbnail_url ?? "",
+    slug: existing?.slug ?? "",
+  });
+  const [contentHtml, setContentHtml] = useState(existing?.content_html ?? "");
   const [saving, setSaving] = useState(false);
 
   async function handleSave() {
@@ -161,15 +186,27 @@ function ArticleEditorModal({ onClose, onSaved }: { onClose: () => void; onSaved
     }
     setSaving(true);
     try {
-      await adminCreateArticle({
-        title: form.title,
-        author: form.author,
-        published_date: form.published_date,
-        excerpt: form.excerpt,
-        content_html: contentHtml,
-        thumbnail_url: form.thumbnail_url || undefined,
-        slug: form.slug || slugify(form.title),
-      });
+      if (isEdit && existing) {
+        await adminUpdateArticle(existing.article_id, {
+          title: form.title,
+          author: form.author,
+          published_date: form.published_date,
+          excerpt: form.excerpt,
+          thumbnail_url: form.thumbnail_url || undefined,
+          slug: form.slug || slugify(form.title),
+          ...(contentHtml ? { content_html: contentHtml } : {}),
+        });
+      } else {
+        await adminCreateArticle({
+          title: form.title,
+          author: form.author,
+          published_date: form.published_date,
+          excerpt: form.excerpt,
+          content_html: contentHtml,
+          thumbnail_url: form.thumbnail_url || undefined,
+          slug: form.slug || slugify(form.title),
+        });
+      }
       onSaved();
       onClose();
     } catch (e) {
@@ -182,15 +219,13 @@ function ArticleEditorModal({ onClose, onSaved }: { onClose: () => void; onSaved
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 overflow-y-auto py-8 px-4">
       <div className="bg-card border border-border rounded-xl shadow-xl w-full max-w-3xl">
-        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-          <h2 className="font-semibold text-base">New Article</h2>
+          <h2 className="font-semibold text-base">{isEdit ? "Edit Article" : "New Article"}</h2>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* Form */}
         <div className="p-6 space-y-4">
           <div>
             <label className="text-xs text-muted-foreground block mb-1">Title <span className="text-destructive">*</span></label>
@@ -198,7 +233,7 @@ function ArticleEditorModal({ onClose, onSaved }: { onClose: () => void; onSaved
               value={form.title}
               onChange={(e) => {
                 const t = e.target.value;
-                setForm((f) => ({ ...f, title: t, slug: slugify(t) }));
+                setForm((f) => ({ ...f, title: t, slug: !isEdit ? slugify(t) : f.slug }));
               }}
               placeholder="Article title"
               autoFocus
@@ -253,16 +288,17 @@ function ArticleEditorModal({ onClose, onSaved }: { onClose: () => void; onSaved
           </div>
 
           <div>
-            <label className="text-xs text-muted-foreground block mb-1">Content</label>
-            <ArticleEditor onChange={setContentHtml} />
+            <label className="text-xs text-muted-foreground block mb-1">
+              Content {isEdit && <span className="text-xs font-normal text-muted-foreground">(leave blank to keep existing)</span>}
+            </label>
+            <ArticleEditor initialHtml={existing?.content_html} onChange={setContentHtml} />
           </div>
         </div>
 
-        {/* Footer */}
         <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border">
           <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
           <Button onClick={handleSave} disabled={saving}>
-            {saving ? "Publishing…" : "Publish Article"}
+            {saving ? "Saving…" : isEdit ? "Save Changes" : "Publish Article"}
           </Button>
         </div>
       </div>
@@ -271,42 +307,71 @@ function ArticleEditorModal({ onClose, onSaved }: { onClose: () => void; onSaved
 }
 
 // ---------------------------------------------------------------------------
-// Article list view
+// Article card
 // ---------------------------------------------------------------------------
 
-function ArticleCard({ article }: { article: ArticleSummary }) {
+function ArticleCard({
+  article,
+  adminMode,
+  onEdit,
+  onDelete,
+}: {
+  article: ArticleSummary;
+  adminMode: boolean;
+  onEdit: (a: ArticleSummary) => void;
+  onDelete: (a: ArticleSummary) => void;
+}) {
   return (
-    <Link to={`/articles/${article.slug}`} className="group block">
-      <Card className="overflow-hidden transition-shadow hover:shadow-md h-full">
-        {article.thumbnail_url && (
-          <img
-            src={article.thumbnail_url}
-            alt={article.title}
-            className="w-full h-44 object-cover"
-          />
-        )}
-        <CardContent className="p-4">
-          <h2 className="font-semibold text-base leading-snug group-hover:text-primary transition-colors mb-2">
-            {article.title}
-          </h2>
-          <p className="text-sm text-muted-foreground line-clamp-3 mb-3">{article.excerpt}</p>
-          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <User className="h-3 w-3" />
-              {article.author}
-            </span>
-            <span className="flex items-center gap-1">
-              <Calendar className="h-3 w-3" />
-              {new Date(article.published_date).toLocaleDateString("en-US", {
-                month: "short", day: "numeric", year: "numeric",
-              })}
-            </span>
-          </div>
-        </CardContent>
-      </Card>
-    </Link>
+    <div className="relative group">
+      <Link to={`/articles/${article.slug}`} className="block h-full">
+        <Card className="overflow-hidden transition-shadow hover:shadow-md h-full">
+          {article.thumbnail_url && (
+            <img src={article.thumbnail_url} alt={article.title} className="w-full h-44 object-cover" />
+          )}
+          <CardContent className="p-4">
+            <h2 className="font-semibold text-base leading-snug group-hover:text-primary transition-colors mb-2">
+              {article.title}
+            </h2>
+            <p className="text-sm text-muted-foreground line-clamp-3 mb-3">{article.excerpt}</p>
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1"><User className="h-3 w-3" />{article.author}</span>
+              <span className="flex items-center gap-1">
+                <Calendar className="h-3 w-3" />
+                {new Date(article.published_date).toLocaleDateString("en-US", {
+                  month: "short", day: "numeric", year: "numeric",
+                })}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      </Link>
+
+      {/* Admin controls — shown in admin mode */}
+      {adminMode && (
+        <div className="absolute top-2 right-2 flex gap-1">
+          <button
+            onClick={(e) => { e.preventDefault(); onEdit(article); }}
+            className="flex h-7 w-7 items-center justify-center rounded-md bg-card border border-border shadow-sm hover:bg-accent"
+            aria-label="Edit"
+          >
+            <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+          </button>
+          <button
+            onClick={(e) => { e.preventDefault(); onDelete(article); }}
+            className="flex h-7 w-7 items-center justify-center rounded-md bg-card border border-border shadow-sm hover:bg-destructive/10"
+            aria-label="Delete"
+          >
+            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Article list view
+// ---------------------------------------------------------------------------
 
 function ArticleList() {
   const [articles, setArticles] = useState<ArticleSummary[]>([]);
@@ -314,8 +379,13 @@ function ArticleList() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Admin state
+  const [adminMode, setAdminMode] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [showEditor, setShowEditor] = useState(false);
+  const [editingArticle, setEditingArticle] = useState<(ArticleSummary & { content_html?: string }) | null>(null);
+  const [showNewEditor, setShowNewEditor] = useState(false);
+
   const PAGE_SIZE = 12;
 
   const load = useCallback(() => {
@@ -330,13 +400,48 @@ function ArticleList() {
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
+  function handleFabClick() {
+    if (adminMode) {
+      setShowNewEditor(true);
+    } else {
+      setShowPassword(true);
+    }
+  }
+
+  async function handleEdit(article: ArticleSummary) {
+    // Fetch full content before opening editor
+    try {
+      const full = await getArticle(article.slug);
+      setEditingArticle({ ...article, content_html: full.content_html });
+    } catch {
+      setEditingArticle(article);
+    }
+  }
+
+  async function handleDelete(article: ArticleSummary) {
+    if (!confirm(`Delete "${article.title}"? This cannot be undone.`)) return;
+    try {
+      await adminDeleteArticle(article.article_id);
+      load();
+    } catch (e) {
+      alert(`Delete failed: ${(e as Error).message}`);
+    }
+  }
+
   return (
     <div className="relative">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Articles</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Strategy, analysis, and research from the Stacking Dingers team.
-        </p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Articles</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Strategy, analysis, and research from the Stacking Dingers team.
+          </p>
+        </div>
+        {adminMode && (
+          <span className="text-xs text-primary font-medium px-2 py-1 rounded-full bg-primary/10">
+            Admin mode
+          </span>
+        )}
       </div>
 
       {loading && <LoadingSpinner />}
@@ -349,7 +454,15 @@ function ArticleList() {
           ) : (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                {articles.map((a) => <ArticleCard key={a.article_id} article={a} />)}
+                {articles.map((a) => (
+                  <ArticleCard
+                    key={a.article_id}
+                    article={a}
+                    adminMode={adminMode}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                  />
+                ))}
               </div>
               {totalPages > 1 && (
                 <div className="flex items-center justify-center gap-3 mt-8">
@@ -375,25 +488,36 @@ function ArticleList() {
         </>
       )}
 
-      {/* Floating add button */}
+      {/* Floating + button */}
       <button
-        onClick={() => setShowPassword(true)}
+        onClick={handleFabClick}
         className="fixed bottom-6 right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-colors"
         aria-label="New article"
       >
         <Plus className="h-5 w-5" />
       </button>
 
+      {/* Password modal */}
       {showPassword && (
         <PasswordModal
-          onSuccess={() => { setShowPassword(false); setShowEditor(true); }}
+          onSuccess={() => { setShowPassword(false); setAdminMode(true); setShowNewEditor(true); }}
           onClose={() => setShowPassword(false)}
         />
       )}
 
-      {showEditor && (
+      {/* New article editor */}
+      {showNewEditor && (
         <ArticleEditorModal
-          onClose={() => setShowEditor(false)}
+          onClose={() => setShowNewEditor(false)}
+          onSaved={load}
+        />
+      )}
+
+      {/* Edit article editor */}
+      {editingArticle && (
+        <ArticleEditorModal
+          existing={editingArticle}
+          onClose={() => setEditingArticle(null)}
           onSaved={load}
         />
       )}
