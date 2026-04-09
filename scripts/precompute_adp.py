@@ -111,8 +111,9 @@ def main() -> None:
         .reset_index()
     )
     player_summary = player_summary.merge(season_draft_counts, on="season")
+    # Ownership = % of all team entries (12 teams per draft) that selected this player
     player_summary["ownership_pct"] = (
-        player_summary["draft_count"] / player_summary["total_season_drafts"] * 100
+        player_summary["draft_count"] * 12 / player_summary["total_season_drafts"] * 100
     ).round(2)
     player_summary["avg_pick"] = player_summary["avg_pick"].round(2)
     player_summary["pick_std"] = player_summary["pick_std"].round(2)
