@@ -88,6 +88,7 @@ def main() -> None:
         JOIN players p ON pk.player_id = p.player_id
         JOIN drafts d ON pk.draft_id = d.draft_id
         WHERE p.position IN ('P', 'IF', 'OF')
+          AND d.season >= 2023
         """,
         conn,
     )

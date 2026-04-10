@@ -32,7 +32,7 @@ import DataAsOf from "@/components/DataAsOf";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import type { AdpPlayerSummaryEntry } from "@/types/api";
 
-const SEASONS = [2025, 2024, 2023, 2022];
+const SEASONS = [2025, 2024, 2023];
 const POSITIONS = ["All", "P", "IF", "OF"];
 
 const POSITION_COLORS: Record<string, string> = {
