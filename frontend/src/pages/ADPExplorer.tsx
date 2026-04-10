@@ -36,9 +36,9 @@ const SEASONS = [2025, 2024, 2023, 2022];
 const POSITIONS = ["All", "P", "IF", "OF"];
 
 const POSITION_COLORS: Record<string, string> = {
-  P: "hsl(200 80% 55%)",
-  IF: "hsl(38 92% 50%)",
-  OF: "hsl(160 60% 45%)",
+  P: "#8B5CF6",
+  IF: "#14B8A6",
+  OF: "#F97316",
 };
 
 // ---------------------------------------------------------------------------
@@ -107,10 +107,10 @@ function LeaderboardTab({ season, position }: { season: number; position: string
   // Position badge colors
   const posBadge = (pos: string) =>
     pos === "P"
-      ? "bg-sky-500/20 text-sky-400"
+      ? "bg-violet-500/20 text-violet-400"
       : pos === "IF"
-      ? "bg-amber-500/20 text-amber-400"
-      : "bg-emerald-500/20 text-emerald-400";
+      ? "bg-teal-500/20 text-teal-400"
+      : "bg-orange-500/20 text-orange-400";
 
   return (
     <div className="space-y-4">
