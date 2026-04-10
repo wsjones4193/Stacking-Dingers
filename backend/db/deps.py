@@ -25,6 +25,7 @@ _engine = None
 _MIGRATIONS = [
     ("podcast_episodes", "series", "TEXT"),
     ("articles", "category", "TEXT"),
+    ("picks", "projection_adp", "REAL"),
 ]
 
 

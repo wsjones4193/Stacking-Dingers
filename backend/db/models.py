@@ -67,10 +67,11 @@ class Pick(SQLModel, table=True):
 
     pick_id: Optional[int] = Field(default=None, primary_key=True)
     draft_id: str = Field(foreign_key="drafts.draft_id", index=True)
-    pick_number: int           # overall pick number 1–240
-    round_number: int          # draft round 1–20
+    pick_number: int                        # overall pick number 1–240
+    round_number: int                       # draft round 1–20
     player_id: int = Field(foreign_key="players.player_id", index=True)
     username: str
+    projection_adp: Optional[float] = None  # Underdog's ADP at time of draft
 
 
 # ---------------------------------------------------------------------------

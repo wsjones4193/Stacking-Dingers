@@ -81,6 +81,11 @@ COLUMN_ALIASES = {
 
     # position (P/IF/OF)
     "position": "position",
+
+    # Underdog's ADP at time of draft (preserved for time-series ADP calculation)
+    "projection_adp": "projection_adp",
+    "projectionAdp": "projection_adp",
+    "adp": "projection_adp",
 }
 
 
@@ -228,12 +233,19 @@ def ingest_season_csv(
                 logger.warning(f"No internal player_id for underdog_id={underdog_player_id}")
                 continue
 
+            proj_adp_raw = pick_row.get("projection_adp")
+            try:
+                proj_adp = float(proj_adp_raw) if proj_adp_raw not in (None, "", "nan") else None
+            except (ValueError, TypeError):
+                proj_adp = None
+
             pick = Pick(
                 draft_id=draft_id,
                 pick_number=int(pick_row["pick_number"]),
                 round_number=int(pick_row.get("round_number", 0)),
                 player_id=internal_player_id,
                 username=str(pick_row.get("username", "")),
+                projection_adp=proj_adp,
             )
             session.add(pick)
             picks_inserted += 1

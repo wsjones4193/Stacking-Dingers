@@ -81,9 +81,11 @@ def main() -> None:
             pk.pick_number,
             pk.round_number,
             pk.player_id,
+            pk.projection_adp,
             p.name AS player_name,
             p.position,
-            d.season
+            d.season,
+            d.draft_date
         FROM picks pk
         JOIN players p ON pk.player_id = p.player_id
         JOIN drafts d ON pk.draft_id = d.draft_id
@@ -93,6 +95,8 @@ def main() -> None:
         conn,
     )
     print(f"  Loaded {len(picks_df):,} picks across {picks_df['season'].nunique()} seasons")
+    has_proj_adp = picks_df["projection_adp"].notna().sum() > 0
+    print(f"  projection_adp populated: {picks_df['projection_adp'].notna().sum():,} picks")
 
     # Total drafts per season (needed for ownership %)
     season_draft_counts = (
@@ -119,6 +123,72 @@ def main() -> None:
     ).round(2)
     player_summary["avg_pick"] = player_summary["avg_pick"].round(2)
     player_summary["pick_std"] = player_summary["pick_std"].round(2)
+
+    # ------------------------------------------------------------------
+    # 1b. AdpDailyTimeseries (requires projection_adp in picks)
+    # ------------------------------------------------------------------
+    print("Computing daily ADP time series ...")
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS adp_daily_timeseries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            player_id INTEGER NOT NULL,
+            player_name TEXT NOT NULL,
+            position TEXT NOT NULL,
+            season INTEGER NOT NULL,
+            snapshot_date TEXT NOT NULL,
+            adp REAL NOT NULL,
+            UNIQUE(player_id, season, snapshot_date)
+        )
+    """)
+    conn.commit()
+    conn.execute("DELETE FROM adp_daily_timeseries")
+    conn.commit()
+
+    if has_proj_adp:
+        proj_picks = picks_df[picks_df["projection_adp"].notna()].copy()
+        proj_picks["draft_date"] = pd.to_datetime(proj_picks["draft_date"]).dt.date
+
+        # Daily avg projection_adp per player/season
+        daily_adp = (
+            proj_picks.groupby(["player_id", "player_name", "position", "season", "draft_date"])
+            ["projection_adp"]
+            .mean()
+            .reset_index()
+            .rename(columns={"draft_date": "snapshot_date", "projection_adp": "adp"})
+        )
+
+        # Forward-fill: for each player/season build a full date range and ffill gaps
+        ffilled_rows = []
+        for (player_id, player_name, position, season), grp in daily_adp.groupby(
+            ["player_id", "player_name", "position", "season"]
+        ):
+            grp = grp.sort_values("snapshot_date").set_index("snapshot_date")
+            min_date = grp.index.min()
+            max_date = daily_adp[daily_adp["season"] == season]["snapshot_date"].max()
+            all_dates = pd.date_range(min_date, max_date, freq="D").date
+            grp = grp.reindex(all_dates)
+            grp["adp"] = grp["adp"].ffill()
+            grp = grp.dropna(subset=["adp"])
+            for snap_date, row in grp.iterrows():
+                ffilled_rows.append({
+                    "player_id": player_id,
+                    "player_name": player_name,
+                    "position": position,
+                    "season": season,
+                    "snapshot_date": str(snap_date),
+                    "adp": round(row["adp"], 2),
+                })
+
+        if ffilled_rows:
+            ts_df = pd.DataFrame(ffilled_rows)
+            ts_df.to_sql("adp_daily_timeseries", conn, if_exists="append", index=False)
+            conn.commit()
+            print(f"  Wrote {len(ffilled_rows):,} daily ADP rows")
+        else:
+            print("  No projection_adp data to build time series from")
+    else:
+        print("  Skipped: projection_adp not yet populated in picks table")
+        print("  Re-run after re-ingesting CSVs with load_historical.py")
 
     # Write to DB
     conn.execute("DELETE FROM adp_player_summary")
