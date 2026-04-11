@@ -5,7 +5,7 @@
  *   3. Round Composition — stacked bar: what positions went in each round
  *   4. ADP vs Draft % — ownership % vs avg pick scatter by position
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -21,7 +21,7 @@ import {
   YAxis,
   ZAxis,
 } from "recharts";
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, X } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useAdpLeaderboard, useAdpRoundComposition, useAdpScarcityCache, useAdpTimeseries } from "@/hooks/useAdp";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -440,9 +440,7 @@ const STROKE_DASHES = ["", "6 3", "2 2", "8 2 2 2"];
 
 function AdpMovementTab({ season, position }: { season: number; position: string }) {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const { data: lbData } = useAdpLeaderboard(season, position === "All" ? undefined : position);
 
@@ -453,19 +451,7 @@ function AdpMovementTab({ season, position }: { season: number; position: string
     position === "All" ? undefined : position,
   );
 
-  // Close dropdown on outside click
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setDropdownOpen(false);
-        setSearch("");
-      }
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
-
-  // Players sorted by avg_pick ascending (best ADP first = ending ADP proxy)
+  // Players sorted by avg_pick ascending
   const sortedPlayers = useMemo(() => {
     if (!lbData) return [];
     return [...lbData.data].sort((a, b) => a.avg_pick - b.avg_pick);
@@ -478,12 +464,6 @@ function AdpMovementTab({ season, position }: { season: number; position: string
     );
   }, [sortedPlayers, search]);
 
-  const playerMap = useMemo(() => {
-    const m: Record<number, AdpPlayerSummaryEntry> = {};
-    lbData?.data.forEach((p) => { m[p.player_id] = p; });
-    return m;
-  }, [lbData]);
-
   function togglePlayer(id: number) {
     setSelectedIds((prev) => {
       if (prev.includes(id)) return prev.filter((x) => x !== id);
@@ -491,10 +471,6 @@ function AdpMovementTab({ season, position }: { season: number; position: string
       return [...prev, id];
     });
   }
-
-  const removePlayer = useCallback((id: number) => {
-    setSelectedIds((prev) => prev.filter((x) => x !== id));
-  }, []);
 
   // Pivot timeseries rows into [{snapshot_date, "Name__id": adp, ...}]
   const { chartData, playerKeys } = useMemo(() => {
@@ -534,7 +510,6 @@ function AdpMovementTab({ season, position }: { season: number; position: string
     return m;
   }, [tsData]);
 
-  // Track dash index per position group so same-position players get different dashes
   const keyDashMap = useMemo(() => {
     const posCount: Record<string, number> = {};
     const m: Record<string, string> = {};
@@ -556,157 +531,134 @@ function AdpMovementTab({ season, position }: { season: number; position: string
   const isDefaultView = selectedIds.length === 0;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
         Daily ADP movement using Underdog's projection ADP — forward-filled on days with no drafts.
-        {isDefaultView && " Showing top 10 players by ADP."}
+        {isDefaultView && " Showing top 10 players by ADP. Click rows to customize."}
       </p>
 
-      {/* Player selector */}
-      <div className="flex flex-wrap items-center gap-2">
-        {/* Selected pills */}
-        {selectedIds.map((id) => {
-          const info = playerMap[id];
-          if (!info) return null;
-          return (
-            <span
-              key={id}
-              className="flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold"
-              style={{
-                backgroundColor: POSITION_COLORS[info.position],
-                color: "#fff",
-              }}
-            >
-              {info.player_name}
-              <button onClick={() => removePlayer(id)} className="ml-0.5 opacity-80 hover:opacity-100">
-                <X className="h-3 w-3" />
-              </button>
-            </span>
-          );
-        })}
-
-        {/* Dropdown trigger */}
-        <div className="relative" ref={dropdownRef}>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => { setDropdownOpen((o) => !o); setSearch(""); }}
-            className="text-xs"
-          >
-            {selectedIds.length === 0 ? "Select players…" : "Add / remove players"}
-          </Button>
-
-          {dropdownOpen && (
-            <div className="absolute z-20 mt-1 w-64 rounded-md border border-border shadow-lg flex flex-col max-h-80" style={{ backgroundColor: "hsl(var(--card))", backdropFilter: "none" }}>
-              {/* Search inside dropdown */}
-              <div className="p-2 border-b border-border">
-                <input
-                  autoFocus
-                  type="text"
-                  placeholder="Search…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-full rounded border border-border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-              </div>
-              <div className="overflow-y-auto">
+      <div className="flex gap-4 items-start">
+        {/* Left: scrollable player table */}
+        <div className="w-56 shrink-0 flex flex-col gap-2">
+          <input
+            type="text"
+            placeholder="Search players…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+          <div className="overflow-y-auto rounded-md border border-border" style={{ height: 420 }}>
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 bg-card z-10">
+                <tr className="border-b border-border text-left text-muted-foreground">
+                  <th className="px-2 py-1.5 w-4" />
+                  <th className="px-1 py-1.5">Pos</th>
+                  <th className="px-2 py-1.5">Player</th>
+                  <th className="px-2 py-1.5 text-right">ADP</th>
+                </tr>
+              </thead>
+              <tbody>
                 {filteredPlayers.map((p) => {
                   const selected = selectedIds.includes(p.player_id);
                   return (
-                    <button
+                    <tr
                       key={p.player_id}
                       onClick={() => togglePlayer(p.player_id)}
-                      className={`flex w-full items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-accent/40 ${selected ? "bg-accent/20" : ""}`}
+                      className={`cursor-pointer border-b border-border/50 transition-colors ${
+                        selected ? "bg-accent/40" : "hover:bg-accent/20"
+                      }`}
                     >
-                      {/* Checkmark column */}
-                      <span className="w-3 shrink-0 text-primary">{selected ? "✓" : ""}</span>
-                      <span
-                        className="shrink-0 rounded px-1 py-0.5 font-medium"
-                        style={{ color: POSITION_COLORS[p.position], backgroundColor: `${POSITION_COLORS[p.position]}20` }}
-                      >
-                        {p.position}
-                      </span>
-                      <span className="truncate">{p.player_name}</span>
-                      <span className="ml-auto shrink-0 text-muted-foreground">{p.avg_pick.toFixed(0)}</span>
-                    </button>
+                      <td className="px-2 py-1.5 text-primary font-bold">{selected ? "✓" : ""}</td>
+                      <td className="px-1 py-1.5">
+                        <span
+                          className="rounded px-1 py-0.5 font-medium text-[10px]"
+                          style={{ color: POSITION_COLORS[p.position], backgroundColor: `${POSITION_COLORS[p.position]}20` }}
+                        >
+                          {p.position}
+                        </span>
+                      </td>
+                      <td className="px-2 py-1.5 truncate max-w-[100px]">{p.player_name}</td>
+                      <td className="px-2 py-1.5 text-right text-muted-foreground">{p.avg_pick.toFixed(0)}</td>
+                    </tr>
                   );
                 })}
                 {filteredPlayers.length === 0 && (
-                  <p className="px-3 py-4 text-xs text-muted-foreground text-center">No players found.</p>
+                  <tr>
+                    <td colSpan={4} className="px-2 py-6 text-center text-muted-foreground">No players found.</td>
+                  </tr>
                 )}
-              </div>
-            </div>
+              </tbody>
+            </table>
+          </div>
+          {selectedIds.length > 0 && (
+            <Button variant="outline" size="sm" className="text-xs w-full" onClick={() => setSelectedIds([])}>
+              Reset to top 10
+            </Button>
           )}
         </div>
 
-        {selectedIds.length > 0 && (
-          <Button variant="ghost" size="sm" className="text-xs" onClick={() => setSelectedIds([])}>
-            Reset
-          </Button>
-        )}
-      </div>
-
-      {loading && <LoadingSpinner />}
-      {error && <p className="py-8 text-center text-sm text-destructive">{error}</p>}
-
-      {!loading && chartData.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>ADP Movement — {season}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={420}>
-              <LineChart data={chartData} margin={{ top: 4, right: 16, bottom: 24, left: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                <XAxis
-                  dataKey="snapshot_date"
-                  tickFormatter={fmtDate}
-                  tick={{ fontSize: 10 }}
-                  interval="preserveStartEnd"
-                  label={{ value: "Date", position: "insideBottom", offset: -12, fontSize: 11 }}
-                />
-                <YAxis
-                  reversed
-                  tick={{ fontSize: 11 }}
-                  tickCount={10}
-                  label={{ value: "ADP", angle: -90, position: "insideLeft", offset: 14, fontSize: 11 }}
-                />
-                <Tooltip
-                  labelFormatter={(l) => String(l)}
-                  formatter={(v: number, name: string) => [`ADP ${v.toFixed(1)}`, name.split("__")[0]]}
-                  itemSorter={(item) => Number(item.value)}
-                />
-                <Legend
-                  formatter={(value) => value.split("__")[0]}
-                  wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
-                />
-                {playerKeys.map((key) => (
-                  <Line
-                    key={key}
-                    type="monotone"
-                    dataKey={key}
-                    name={key}
-                    stroke={POSITION_COLORS[keyPositionMap[key]] ?? "#94a3b8"}
-                    strokeDasharray={keyDashMap[key]}
-                    strokeOpacity={1}
-                    dot={false}
-                    strokeWidth={2.5}
-                    connectNulls
-                  />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      )}
-
-      {!loading && chartData.length === 0 && !error && (
-        <div className="py-12 text-center text-sm text-muted-foreground">
-          No ADP movement data for {season}. Run <code>python scripts/precompute_adp.py</code>.
+        {/* Right: chart */}
+        <div className="flex-1 min-w-0">
+          {loading && <LoadingSpinner />}
+          {error && <p className="py-8 text-center text-sm text-destructive">{error}</p>}
+          {!loading && chartData.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle>ADP Movement — {season}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={420}>
+                  <LineChart data={chartData} margin={{ top: 4, right: 16, bottom: 24, left: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                    <XAxis
+                      dataKey="snapshot_date"
+                      tickFormatter={fmtDate}
+                      tick={{ fontSize: 10 }}
+                      interval="preserveStartEnd"
+                      label={{ value: "Date", position: "insideBottom", offset: -12, fontSize: 11 }}
+                    />
+                    <YAxis
+                      reversed
+                      tick={{ fontSize: 11 }}
+                      tickCount={10}
+                      label={{ value: "ADP", angle: -90, position: "insideLeft", offset: 14, fontSize: 11 }}
+                    />
+                    <Tooltip
+                      labelFormatter={(l) => String(l)}
+                      formatter={(v: number, name: string) => [`ADP ${v.toFixed(1)}`, name.split("__")[0]]}
+                      itemSorter={(item) => Number(item.value)}
+                    />
+                    <Legend
+                      formatter={(value) => value.split("__")[0]}
+                      wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
+                    />
+                    {playerKeys.map((key) => (
+                      <Line
+                        key={key}
+                        type="monotone"
+                        dataKey={key}
+                        name={key}
+                        stroke={POSITION_COLORS[keyPositionMap[key]] ?? "#94a3b8"}
+                        strokeDasharray={keyDashMap[key]}
+                        strokeOpacity={1}
+                        dot={false}
+                        strokeWidth={2.5}
+                        connectNulls
+                      />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          )}
+          {!loading && chartData.length === 0 && !error && (
+            <div className="py-12 text-center text-sm text-muted-foreground">
+              No ADP movement data for {season}.
+            </div>
+          )}
+          {tsData && <DataAsOf dataAsOf={tsData.data_as_of} />}
         </div>
-      )}
-
-      {tsData && <DataAsOf dataAsOf={tsData.data_as_of} />}
+      </div>
     </div>
   );
 }
