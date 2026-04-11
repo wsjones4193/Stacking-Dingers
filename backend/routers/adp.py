@@ -360,10 +360,13 @@ def adp_timeseries(
             pos_filter = "AND position=?"
             params.append(position.upper())
 
+        # Use ending ADP (most recent snapshot date) — matches leaderboard sort
         top_rows = conn.execute(
-            f"SELECT player_id FROM adp_daily_timeseries WHERE season=? {pos_filter} "
-            f"GROUP BY player_id ORDER BY MIN(adp) LIMIT ?",
-            [*params, limit],
+            f"SELECT player_id FROM adp_daily_timeseries "
+            f"WHERE season=? {pos_filter} "
+            f"AND snapshot_date = (SELECT MAX(snapshot_date) FROM adp_daily_timeseries WHERE season=?) "
+            f"ORDER BY adp LIMIT ?",
+            [*params, season, limit],
         ).fetchall()
         top_ids = [r[0] for r in top_rows]
 
