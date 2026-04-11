@@ -45,11 +45,11 @@ const POSITION_COLORS: Record<string, string> = {
 // Tab 1: ADP Leaderboard
 // ---------------------------------------------------------------------------
 
-type LBSortKey = "ending_adp" | "avg_pick" | "ownership_pct" | "pick_std" | "draft_count";
+type LBSortKey = "avg_projection_adp" | "ending_adp" | "avg_pick" | "ownership_pct" | "pick_std" | "draft_count";
 type SortDir = "asc" | "desc";
 
 function LeaderboardTab({ season, position }: { season: number; position: string }) {
-  const [sortBy, setSortBy] = useState<LBSortKey>("ending_adp");
+  const [sortBy, setSortBy] = useState<LBSortKey>("avg_projection_adp");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
@@ -65,7 +65,7 @@ function LeaderboardTab({ season, position }: { season: number; position: string
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     } else {
       setSortBy(col);
-      setSortDir(col === "ending_adp" || col === "avg_pick" ? "asc" : "desc");
+      setSortDir(col === "avg_projection_adp" || col === "ending_adp" || col === "avg_pick" ? "asc" : "desc");
     }
     setPage(1);
   }
@@ -96,8 +96,12 @@ function LeaderboardTab({ season, position }: { season: number; position: string
     : data.data;
 
   const sorted = [...filtered].sort((a, b) => {
-    const va = (sortBy === "ending_adp" ? (a.ending_adp ?? a.avg_pick) : (a[sortBy] ?? 9999)) as number;
-    const vb = (sortBy === "ending_adp" ? (b.ending_adp ?? b.avg_pick) : (b[sortBy] ?? 9999)) as number;
+    const va = (sortBy === "avg_projection_adp" ? (a.avg_projection_adp ?? a.ending_adp ?? a.avg_pick)
+              : sortBy === "ending_adp" ? (a.ending_adp ?? a.avg_pick)
+              : (a[sortBy] ?? 9999)) as number;
+    const vb = (sortBy === "avg_projection_adp" ? (b.avg_projection_adp ?? b.ending_adp ?? b.avg_pick)
+              : sortBy === "ending_adp" ? (b.ending_adp ?? b.avg_pick)
+              : (b[sortBy] ?? 9999)) as number;
     return sortDir === "asc" ? va - vb : vb - va;
   });
 
@@ -138,17 +142,20 @@ function LeaderboardTab({ season, position }: { season: number; position: string
                 <th className="pb-2">Pos</th>
                 <th
                   className="pb-2 text-right cursor-pointer hover:text-foreground select-none"
-                  onClick={() => toggleSort("ending_adp")}
-                  title="Most recent projection ADP"
+                  onClick={() => toggleSort("avg_projection_adp")}
+                  title="Average projection ADP across all drafts"
                 >
-                  ADP<SortIcon col="ending_adp" />
+                  ADP<SortIcon col="avg_projection_adp" />
                 </th>
                 <th
                   className="pb-2 text-right cursor-pointer hover:text-foreground select-none"
-                  onClick={() => toggleSort("avg_pick")}
-                  title="Season average pick number"
+                  onClick={() => toggleSort("ending_adp")}
+                  title="Most recent projection ADP"
                 >
-                  Avg Pick<SortIcon col="avg_pick" />
+                  Current<SortIcon col="ending_adp" />
+                </th>
+                <th className="pb-2 text-right text-muted-foreground" title="Min – Max projection ADP">
+                  Range
                 </th>
                 <th
                   className="pb-2 text-right cursor-pointer hover:text-foreground select-none"
@@ -187,10 +194,15 @@ function LeaderboardTab({ season, position }: { season: number; position: string
                       </span>
                     </td>
                     <td className="py-1.5 text-right font-semibold">
-                      {(p.ending_adp ?? p.avg_pick).toFixed(1)}
+                      {(p.avg_projection_adp ?? p.ending_adp ?? p.avg_pick).toFixed(1)}
                     </td>
                     <td className="py-1.5 text-right text-muted-foreground">
-                      {p.avg_pick.toFixed(1)}
+                      {p.ending_adp?.toFixed(1) ?? "—"}
+                    </td>
+                    <td className="py-1.5 text-right text-muted-foreground text-xs">
+                      {p.min_projection_adp != null && p.max_projection_adp != null
+                        ? `${p.min_projection_adp.toFixed(1)}–${p.max_projection_adp.toFixed(1)}`
+                        : "—"}
                     </td>
                     <td className="py-1.5 text-right text-muted-foreground">
                       {p.pick_std != null ? `±${p.pick_std.toFixed(1)}` : "—"}
@@ -371,18 +383,18 @@ function AdpVsDraftRateTab({ season, position }: { season: number; position: str
     );
   }
 
-  // Use ending_adp (most recent projection ADP) as the X value, fallback to avg_pick
+  // Use avg_projection_adp as X value, fallback chain for missing data
   type ScatterPoint = AdpPlayerSummaryEntry & { adp_x: number };
   const byPos: Record<string, ScatterPoint[]> = {};
   for (const p of data.data) {
     if (!byPos[p.position]) byPos[p.position] = [];
-    byPos[p.position].push({ ...p, adp_x: p.ending_adp ?? p.avg_pick });
+    byPos[p.position].push({ ...p, adp_x: p.avg_projection_adp ?? p.ending_adp ?? p.avg_pick });
   }
 
   return (
     <div className="space-y-4">
       <p className="text-xs text-muted-foreground">
-        Each dot is a player: X = most recent ADP, Y = ownership % across all {season} rosters.
+        Each dot is a player: X = average projection ADP (across all drafts), Y = ownership % across all {season} rosters.
         Earlier-drafted players cluster top-left; deeper picks spread bottom-right.
       </p>
       <Card>
@@ -419,9 +431,9 @@ function AdpVsDraftRateTab({ season, position }: { season: number; position: str
                     <div className="rounded-md border bg-popover p-2 text-xs shadow-md">
                       <p className="font-semibold">{p.player_name}</p>
                       <p className="text-muted-foreground">{p.position}</p>
-                      <p>ADP: {p.adp_x?.toFixed(1)}</p>
+                      <p>Avg ADP: {p.adp_x?.toFixed(1)}</p>
+                      <p>ADP range: {p.min_projection_adp?.toFixed(1)} – {p.max_projection_adp?.toFixed(1)}</p>
                       <p>Ownership: {p.ownership_pct?.toFixed(1)}%</p>
-                      <p className="text-muted-foreground">±{p.pick_std?.toFixed(1)} std dev</p>
                     </div>
                   );
                 }}

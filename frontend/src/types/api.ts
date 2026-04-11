@@ -338,6 +338,9 @@ export interface AdpPlayerSummaryEntry {
   player_id: number;
   player_name: string;
   ending_adp?: number | null;
+  avg_projection_adp?: number | null;
+  min_projection_adp?: number | null;
+  max_projection_adp?: number | null;
   position: string;
   avg_pick: number;
   pick_std: number | null;

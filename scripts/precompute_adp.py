@@ -36,6 +36,9 @@ def _ensure_tables(conn: sqlite3.Connection) -> None:
             ownership_pct REAL NOT NULL,
             draft_count INTEGER NOT NULL,
             total_season_drafts INTEGER NOT NULL,
+            avg_projection_adp REAL,
+            min_projection_adp REAL,
+            max_projection_adp REAL,
             UNIQUE(player_id, season)
         )
     """)
@@ -124,6 +127,16 @@ def main() -> None:
     player_summary["avg_pick"] = player_summary["avg_pick"].round(2)
     player_summary["pick_std"] = player_summary["pick_std"].round(2)
 
+    # avg/min/max projection_adp: stats from Underdog's projection_adp across all picks
+    proj_adp_stats = (
+        picks_df[picks_df["projection_adp"].notna()]
+        .groupby(["player_id", "season"])["projection_adp"]
+        .agg(avg_projection_adp="mean", min_projection_adp="min", max_projection_adp="max")
+        .round(2)
+        .reset_index()
+    )
+    player_summary = player_summary.merge(proj_adp_stats, on=["player_id", "season"], how="left")
+
     # ------------------------------------------------------------------
     # 1b. AdpDailyTimeseries (requires projection_adp in picks)
     # ------------------------------------------------------------------
@@ -194,7 +207,8 @@ def main() -> None:
     conn.execute("DELETE FROM adp_player_summary")
     player_summary[
         ["player_id", "season", "player_name", "position", "avg_pick", "pick_std",
-         "ownership_pct", "draft_count", "total_season_drafts"]
+         "ownership_pct", "draft_count", "total_season_drafts",
+         "avg_projection_adp", "min_projection_adp", "max_projection_adp"]
     ].to_sql("adp_player_summary", conn, if_exists="append", index=False)
     conn.commit()
     print(f"  Wrote {len(player_summary):,} player-season rows")
