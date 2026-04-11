@@ -128,7 +128,7 @@ export const getAdpTimeseries = (season: number, playerIds?: string, position?: 
   get<DataResponse<AdpDailyTimeseriesEntry[]>>("/api/adp/timeseries", { season, player_ids: playerIds, position, limit });
 
 export const getAdpPlayerPicks = (player_id: number, season: number) =>
-  get<DataResponse<{ round_number: number; count: number }[]>>("/api/adp/player-picks", { player_id, season });
+  get<DataResponse<{ pick_number: number; count: number }[]>>("/api/adp/player-picks", { player_id, season });
 
 // ---------------------------------------------------------------------------
 // Leaderboard

@@ -411,10 +411,10 @@ def adp_player_picks(
     """Pre-computed per-round pick count for a player from adp_cache.db."""
     conn = _cache_conn()
     rows = conn.execute(
-        "SELECT round_number, count FROM adp_pick_distribution WHERE player_id=? AND season=? ORDER BY round_number",
+        "SELECT pick_number, count FROM adp_pick_distribution WHERE player_id=? AND season=? ORDER BY pick_number",
         [player_id, season],
     ).fetchall()
     conn.close()
 
-    data = [{"round_number": r[0], "count": r[1]} for r in rows]
+    data = [{"pick_number": r[0], "count": r[1]} for r in rows]
     return DataResponse(data=data, sample_size=sum(r["count"] for r in data), data_as_of=date.today().isoformat())

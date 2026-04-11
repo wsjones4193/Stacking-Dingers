@@ -131,7 +131,7 @@ export function useAdpTimeseries(season: number, playerIds?: string, position?: 
 }
 
 export function useAdpPlayerPicks(playerId: number | null, season: number) {
-  const [data, setData] = useState<DataResponse<{ round_number: number; count: number }[]> | null>(null);
+  const [data, setData] = useState<DataResponse<{ pick_number: number; count: number }[]> | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

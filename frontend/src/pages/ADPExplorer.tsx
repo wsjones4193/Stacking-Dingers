@@ -58,8 +58,8 @@ function PlayerTrendChart({ playerId, season, color }: { playerId: number; seaso
 
   if (tsLoading || picksLoading) return <p className="py-4 text-center text-xs text-muted-foreground">Loading…</p>;
 
-  // --- Histogram: pre-bucketed by round from adp_cache.db ---
-  const histData = (picksData?.data ?? []).map((d) => ({ round: d.round_number, count: d.count }));
+  // --- Histogram: pre-bucketed by pick number from adp_cache.db ---
+  const histData = (picksData?.data ?? []).map((d) => ({ pick: d.pick_number, count: d.count }));
   const totalDrafts = histData.reduce((s, d) => s + d.count, 0);
 
   // Convert to timestamps for numeric XAxis (required for Scatter to render in ComposedChart)
@@ -130,20 +130,20 @@ function PlayerTrendChart({ playerId, season, color }: { playerId: number; seaso
 
       {/* Pick number histogram — 1/3 width on desktop */}
       <div style={{ height: 190 }}>
-        <p className="text-[10px] text-muted-foreground mb-1">Pick # by round ({totalDrafts.toLocaleString()} drafts)</p>
+        <p className="text-[10px] text-muted-foreground mb-1">Pick # distribution ({totalDrafts.toLocaleString()} drafts)</p>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={histData} margin={{ top: 4, right: 8, bottom: 20, left: -10 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
             <XAxis
-              dataKey="round"
+              dataKey="pick"
               tick={{ fontSize: 9 }}
-              tickFormatter={(r) => `R${r}`}
-              label={{ value: "Round", position: "insideBottom", offset: -10, fontSize: 10 }}
+              label={{ value: "Pick #", position: "insideBottom", offset: -10, fontSize: 10 }}
+              interval="preserveStartEnd"
             />
             <YAxis tick={{ fontSize: 9 }} allowDecimals={false} />
             <Tooltip
               formatter={(v: number) => [v.toLocaleString(), "Drafts"]}
-              labelFormatter={(r) => `Round ${r}`}
+              labelFormatter={(p) => `Pick ${p}`}
               contentStyle={{ fontSize: 11 }}
             />
             <Bar dataKey="count" fill={color} fillOpacity={0.75} radius={[2, 2, 0, 0]} name="Drafts" isAnimationActive={false} />
