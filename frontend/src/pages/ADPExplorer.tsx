@@ -650,7 +650,11 @@ function AdpMovementTab({ season, position }: { season: number; position: string
                     <YAxis
                       reversed
                       tick={{ fontSize: 11 }}
-                      tickCount={10}
+                      tickCount={8}
+                      domain={([dataMin, dataMax]: [number, number]) => [
+                        Math.max(1, Math.floor(dataMin) - 1),
+                        Math.ceil(dataMax) + 2,
+                      ]}
                       label={{ value: "ADP", angle: -90, position: "insideLeft", offset: 14, fontSize: 11 }}
                     />
                     <Tooltip
