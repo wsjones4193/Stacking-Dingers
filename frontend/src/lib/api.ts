@@ -6,6 +6,7 @@
 
 import type {
   AdpAccuracyEntry,
+  AdpDailyTimeseriesEntry,
   AdpMovementPoint,
   AdpPlayerSummaryEntry,
   AdpRoundCompositionEntry,
@@ -122,6 +123,9 @@ export const getAdpScarcityCache = (season: number) =>
 
 export const getAdpRoundComposition = (season: number) =>
   get<DataResponse<AdpRoundCompositionEntry[]>>("/api/adp/round-composition", { season });
+
+export const getAdpTimeseries = (season: number, playerIds?: string, position?: string, limit = 10) =>
+  get<DataResponse<AdpDailyTimeseriesEntry[]>>("/api/adp/timeseries", { season, player_ids: playerIds, position, limit });
 
 // ---------------------------------------------------------------------------
 // Leaderboard

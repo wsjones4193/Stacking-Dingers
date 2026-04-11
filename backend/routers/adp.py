@@ -305,3 +305,71 @@ def adp_round_composition(
         for r in rows
     ]
     return DataResponse(data=data, sample_size=len(data), data_as_of=date.today().isoformat())
+
+
+# ---------------------------------------------------------------------------
+# GET /api/adp/timeseries?season=2025&player_ids=1,2,3&position=P&limit=10
+# ---------------------------------------------------------------------------
+
+@router.get("/timeseries", response_model=DataResponse)
+def adp_timeseries(
+    season: int = Query(default=2025),
+    player_ids: Optional[str] = Query(default=None, description="Comma-separated internal player IDs"),
+    position: Optional[str] = Query(default=None, description="P | IF | OF"),
+    limit: int = Query(default=10, le=50),
+):
+    """
+    Daily ADP time series from adp_daily_timeseries (forward-filled projection_adp).
+    If player_ids provided: returns rows for those players.
+    Otherwise: returns the top N players by earliest average ADP for the season.
+    """
+    conn = _cache_conn()
+
+    if player_ids:
+        ids = [int(x) for x in player_ids.split(",") if x.strip().lstrip("-").isdigit()]
+        if not ids:
+            conn.close()
+            return DataResponse(data=[], sample_size=0, data_as_of=date.today().isoformat())
+        placeholders = ",".join("?" * len(ids))
+        rows = conn.execute(
+            f"SELECT player_id, player_name, position, season, snapshot_date, adp "
+            f"FROM adp_daily_timeseries WHERE season=? AND player_id IN ({placeholders}) "
+            f"ORDER BY snapshot_date, player_id",
+            [season, *ids],
+        ).fetchall()
+    else:
+        params: list = [season]
+        pos_filter = ""
+        if position:
+            pos_filter = "AND position=?"
+            params.append(position.upper())
+
+        top_rows = conn.execute(
+            f"SELECT player_id FROM adp_daily_timeseries WHERE season=? {pos_filter} "
+            f"GROUP BY player_id ORDER BY MIN(adp) LIMIT ?",
+            [*params, limit],
+        ).fetchall()
+        top_ids = [r[0] for r in top_rows]
+
+        if not top_ids:
+            conn.close()
+            return DataResponse(data=[], sample_size=0, data_as_of=date.today().isoformat())
+
+        placeholders = ",".join("?" * len(top_ids))
+        rows = conn.execute(
+            f"SELECT player_id, player_name, position, season, snapshot_date, adp "
+            f"FROM adp_daily_timeseries WHERE season=? AND player_id IN ({placeholders}) "
+            f"ORDER BY snapshot_date, player_id",
+            [season, *top_ids],
+        ).fetchall()
+
+    conn.close()
+
+    data = [
+        {
+            "player_id": r[0], "player_name": r[1], "position": r[2],
+            "season": r[3], "snapshot_date": r[4], "adp": r[5],
+        }
+        for r in rows
+    ]
+    return DataResponse(data=data, sample_size=len(data), data_as_of=date.today().isoformat())

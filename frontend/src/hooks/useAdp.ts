@@ -2,8 +2,9 @@
  * Hooks for the three ADP Explorer views: scatter, movement, and scarcity.
  */
 import { useEffect, useState } from "react";
-import { getAdpLeaderboard, getAdpMovement, getAdpRoundComposition, getAdpScarcity, getAdpScarcityCache, getAdpScatter } from "@/lib/api";
+import { getAdpLeaderboard, getAdpMovement, getAdpRoundComposition, getAdpScarcity, getAdpScarcityCache, getAdpScatter, getAdpTimeseries } from "@/lib/api";
 import type {
+  AdpDailyTimeseriesEntry,
   AdpMovementPoint,
   AdpPlayerSummaryEntry,
   AdpRoundCompositionEntry,
@@ -109,6 +110,22 @@ export function useAdpRoundComposition(season: number) {
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
   }, [season]);
+
+  return { data, loading, error };
+}
+
+export function useAdpTimeseries(season: number, playerIds?: string, position?: string) {
+  const [data, setData] = useState<DataResponse<AdpDailyTimeseriesEntry[]> | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    getAdpTimeseries(season, playerIds, position)
+      .then(setData)
+      .catch((e: Error) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [season, playerIds, position]);
 
   return { data, loading, error };
 }

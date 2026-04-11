@@ -361,6 +361,15 @@ export interface AdpRoundCompositionEntry {
   pct_of_round: number;
 }
 
+export interface AdpDailyTimeseriesEntry {
+  player_id: number;
+  player_name: string;
+  position: string;
+  season: number;
+  snapshot_date: string;
+  adp: number;
+}
+
 // ---------------------------------------------------------------------------
 // Filter params (shared across endpoints)
 // ---------------------------------------------------------------------------

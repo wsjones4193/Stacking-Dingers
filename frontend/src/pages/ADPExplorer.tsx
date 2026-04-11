@@ -5,7 +5,7 @@
  *   3. Round Composition — stacked bar: what positions went in each round
  *   4. ADP vs Draft % — ownership % vs avg pick scatter by position
  */
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -21,9 +21,9 @@ import {
   YAxis,
   ZAxis,
 } from "recharts";
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, X } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
-import { useAdpLeaderboard, useAdpRoundComposition, useAdpScarcityCache } from "@/hooks/useAdp";
+import { useAdpLeaderboard, useAdpRoundComposition, useAdpScarcityCache, useAdpTimeseries } from "@/hooks/useAdp";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -432,6 +432,242 @@ function AdpVsDraftRateTab({ season, position }: { season: number; position: str
 }
 
 // ---------------------------------------------------------------------------
+// Tab 5: ADP Movement — daily ADP time series per player
+// ---------------------------------------------------------------------------
+
+function AdpMovementTab({ season, position }: { season: number; position: string }) {
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [search, setSearch] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // Leaderboard: used for player search + resolving names
+  const { data: lbData } = useAdpLeaderboard(season, position === "All" ? undefined : position);
+
+  // Timeseries: if no selection → endpoint returns top 10 by ADP
+  const playerIdsParam = selectedIds.length > 0 ? selectedIds.join(",") : undefined;
+  const { data: tsData, loading, error } = useAdpTimeseries(
+    season,
+    playerIdsParam,
+    position === "All" ? undefined : position,
+  );
+
+  // Search suggestions: players in leaderboard not yet selected
+  const suggestions = useMemo(() => {
+    if (!lbData || !search.trim()) return [];
+    return lbData.data
+      .filter(
+        (p) =>
+          !selectedIds.includes(p.player_id) &&
+          p.player_name.toLowerCase().includes(search.toLowerCase()),
+      )
+      .slice(0, 8);
+  }, [lbData, search, selectedIds]);
+
+  // Player name lookup from leaderboard
+  const nameMap = useMemo(() => {
+    const m: Record<number, { name: string; position: string }> = {};
+    lbData?.data.forEach((p) => { m[p.player_id] = { name: p.player_name, position: p.position }; });
+    return m;
+  }, [lbData]);
+
+  function addPlayer(id: number) {
+    if (selectedIds.length >= 12) return;
+    setSelectedIds((prev) => [...prev, id]);
+    setSearch("");
+    setShowSuggestions(false);
+  }
+
+  const removePlayer = useCallback((id: number) => {
+    setSelectedIds((prev) => prev.filter((x) => x !== id));
+  }, []);
+
+  // Pivot timeseries: [{snapshot_date, [playerName]: adp, ...}]
+  const { chartData, playerKeys } = useMemo(() => {
+    if (!tsData?.data.length) return { chartData: [], playerKeys: [] };
+
+    const rows = tsData.data;
+    const dateMap: Record<string, Record<string, number>> = {};
+    const keys = new Set<string>();
+
+    for (const row of rows) {
+      if (!dateMap[row.snapshot_date]) dateMap[row.snapshot_date] = { snapshot_date: row.snapshot_date as unknown as number };
+      // Use short name for key to avoid duplicate issues
+      const key = `${row.player_name}__${row.player_id}`;
+      dateMap[row.snapshot_date][key] = row.adp;
+      keys.add(key);
+    }
+
+    const sorted = Object.values(dateMap).sort((a, b) =>
+      String(a.snapshot_date).localeCompare(String(b.snapshot_date))
+    );
+
+    // Sort player keys by their earliest ADP (ascending = earlier pick = higher priority)
+    const sortedKeys = Array.from(keys).sort((a, b) => {
+      const aMin = Math.min(...rows.filter((r) => `${r.player_name}__${r.player_id}` === a).map((r) => r.adp));
+      const bMin = Math.min(...rows.filter((r) => `${r.player_name}__${r.player_id}` === b).map((r) => r.adp));
+      return aMin - bMin;
+    });
+
+    return { chartData: sorted, playerKeys: sortedKeys };
+  }, [tsData]);
+
+  // Resolve position color from timeseries data
+  const keyPositionMap = useMemo(() => {
+    const m: Record<string, string> = {};
+    tsData?.data.forEach((row) => {
+      m[`${row.player_name}__${row.player_id}`] = row.position;
+    });
+    return m;
+  }, [tsData]);
+
+  // Label tick formatter: shorten date to MM/DD
+  function fmtDate(d: string) {
+    if (!d || typeof d !== "string") return "";
+    const parts = d.split("-");
+    if (parts.length < 3) return d;
+    return `${parts[1]}/${parts[2]}`;
+  }
+
+  const isDefaultView = selectedIds.length === 0;
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-muted-foreground">
+        Daily ADP movement using Underdog's projection ADP — forward-filled on days with no drafts.
+        {isDefaultView && " Showing top 10 players by earliest ADP."}
+      </p>
+
+      {/* Player selector */}
+      <div className="flex flex-wrap items-center gap-2">
+        {/* Selected player pills */}
+        {selectedIds.map((id) => {
+          const info = nameMap[id];
+          if (!info) return null;
+          return (
+            <span
+              key={id}
+              className="flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
+              style={{
+                backgroundColor: `${POSITION_COLORS[info.position]}30`,
+                color: POSITION_COLORS[info.position],
+                border: `1px solid ${POSITION_COLORS[info.position]}60`,
+              }}
+            >
+              {info.name}
+              <button onClick={() => removePlayer(id)} className="ml-0.5 opacity-70 hover:opacity-100">
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          );
+        })}
+
+        {/* Search input */}
+        <div className="relative">
+          <input
+            type="text"
+            placeholder="Add player…"
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setShowSuggestions(true); }}
+            onFocus={() => setShowSuggestions(true)}
+            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+            className="rounded-md border border-border bg-background px-3 py-1 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary w-44"
+          />
+          {showSuggestions && suggestions.length > 0 && (
+            <div className="absolute z-10 mt-1 w-56 rounded-md border border-border bg-popover shadow-md">
+              {suggestions.map((p) => (
+                <button
+                  key={p.player_id}
+                  onMouseDown={() => addPlayer(p.player_id)}
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent/40 text-left"
+                >
+                  <span
+                    className="rounded px-1 py-0.5 text-xs font-medium"
+                    style={{ color: POSITION_COLORS[p.position], backgroundColor: `${POSITION_COLORS[p.position]}20` }}
+                  >
+                    {p.position}
+                  </span>
+                  {p.player_name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {selectedIds.length > 0 && (
+          <Button variant="ghost" size="sm" onClick={() => setSelectedIds([])}>
+            Reset to top 10
+          </Button>
+        )}
+      </div>
+
+      {loading && <LoadingSpinner />}
+      {error && <p className="py-8 text-center text-sm text-destructive">{error}</p>}
+
+      {!loading && chartData.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>ADP Movement — {season}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={400}>
+              <LineChart data={chartData} margin={{ top: 4, right: 16, bottom: 20, left: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis
+                  dataKey="snapshot_date"
+                  tickFormatter={fmtDate}
+                  tick={{ fontSize: 10 }}
+                  interval="preserveStartEnd"
+                  label={{ value: "Date", position: "insideBottom", offset: -10, fontSize: 11 }}
+                />
+                <YAxis
+                  domain={[240, 1]}
+                  reversed
+                  tick={{ fontSize: 11 }}
+                  tickCount={10}
+                  label={{ value: "ADP (lower = earlier pick)", angle: -90, position: "insideLeft", offset: 12, fontSize: 10 }}
+                />
+                <Tooltip
+                  labelFormatter={(l) => String(l)}
+                  formatter={(v: number, name: string) => {
+                    const displayName = name.split("__")[0];
+                    return [`ADP ${v.toFixed(1)}`, displayName];
+                  }}
+                  itemSorter={(item) => Number(item.value)}
+                />
+                <Legend
+                  formatter={(value) => value.split("__")[0]}
+                  wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
+                />
+                {playerKeys.map((key) => (
+                  <Line
+                    key={key}
+                    type="monotone"
+                    dataKey={key}
+                    name={key}
+                    stroke={POSITION_COLORS[keyPositionMap[key]] ?? "#94a3b8"}
+                    dot={false}
+                    strokeWidth={2}
+                    connectNulls
+                  />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
+
+      {!loading && chartData.length === 0 && !error && (
+        <div className="py-12 text-center text-sm text-muted-foreground">
+          No ADP movement data for {season}. Run <code>python scripts/precompute_adp.py</code>.
+        </div>
+      )}
+
+      {tsData && <DataAsOf dataAsOf={tsData.data_as_of} />}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Tab 3: Round Composition
 // ---------------------------------------------------------------------------
 
@@ -582,6 +818,7 @@ export default function ADPExplorer() {
           <TabsTrigger value="scarcity">Positional Scarcity</TabsTrigger>
           <TabsTrigger value="composition">Round Composition</TabsTrigger>
           <TabsTrigger value="adp-draft-rate">ADP vs Draft %</TabsTrigger>
+          <TabsTrigger value="adp-movement">ADP Movement</TabsTrigger>
         </TabsList>
 
         <TabsContent value="leaderboard">
@@ -598,6 +835,10 @@ export default function ADPExplorer() {
 
         <TabsContent value="adp-draft-rate">
           <AdpVsDraftRateTab season={season} position={position} />
+        </TabsContent>
+
+        <TabsContent value="adp-movement">
+          <AdpMovementTab season={season} position={position} />
         </TabsContent>
       </Tabs>
     </div>
