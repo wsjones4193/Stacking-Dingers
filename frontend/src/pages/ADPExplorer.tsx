@@ -371,17 +371,18 @@ function AdpVsDraftRateTab({ season, position }: { season: number; position: str
     );
   }
 
-  // Split into per-position datasets for color coding
-  const byPos: Record<string, typeof data.data> = {};
+  // Use ending_adp (most recent projection ADP) as the X value, fallback to avg_pick
+  type ScatterPoint = AdpPlayerSummaryEntry & { adp_x: number };
+  const byPos: Record<string, ScatterPoint[]> = {};
   for (const p of data.data) {
     if (!byPos[p.position]) byPos[p.position] = [];
-    byPos[p.position].push(p);
+    byPos[p.position].push({ ...p, adp_x: p.ending_adp ?? p.avg_pick });
   }
 
   return (
     <div className="space-y-4">
       <p className="text-xs text-muted-foreground">
-        Each dot is a player: X = average draft position, Y = ownership % across all {season} rosters.
+        Each dot is a player: X = most recent ADP, Y = ownership % across all {season} rosters.
         Earlier-drafted players cluster top-left; deeper picks spread bottom-right.
       </p>
       <Card>
@@ -393,11 +394,11 @@ function AdpVsDraftRateTab({ season, position }: { season: number; position: str
             <ScatterChart margin={{ top: 8, right: 16, bottom: 24, left: 8 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis
-                dataKey="avg_pick"
-                name="Avg Pick"
+                dataKey="adp_x"
+                name="ADP"
                 type="number"
                 domain={[1, 240]}
-                label={{ value: "Avg Draft Pick", position: "insideBottom", offset: -12, fontSize: 11 }}
+                label={{ value: "ADP", position: "insideBottom", offset: -12, fontSize: 11 }}
                 tick={{ fontSize: 11 }}
               />
               <YAxis
@@ -413,12 +414,12 @@ function AdpVsDraftRateTab({ season, position }: { season: number; position: str
                 cursor={{ strokeDasharray: "3 3" }}
                 content={({ active, payload }) => {
                   if (!active || !payload?.length) return null;
-                  const p = payload[0].payload;
+                  const p = payload[0].payload as ScatterPoint;
                   return (
                     <div className="rounded-md border bg-popover p-2 text-xs shadow-md">
                       <p className="font-semibold">{p.player_name}</p>
                       <p className="text-muted-foreground">{p.position}</p>
-                      <p>Avg pick: {p.avg_pick?.toFixed(1)}</p>
+                      <p>ADP: {p.adp_x?.toFixed(1)}</p>
                       <p>Ownership: {p.ownership_pct?.toFixed(1)}%</p>
                       <p className="text-muted-foreground">±{p.pick_std?.toFixed(1)} std dev</p>
                     </div>
