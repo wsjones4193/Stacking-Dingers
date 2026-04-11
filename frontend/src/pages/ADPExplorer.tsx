@@ -7,6 +7,7 @@
 import { useMemo, useState } from "react";
 import {
   CartesianGrid,
+  ComposedChart,
   Legend,
   Line,
   LineChart,
@@ -19,8 +20,8 @@ import {
   ZAxis,
 } from "recharts";
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from "lucide-react";
-import { Link, useSearchParams } from "react-router-dom";
-import { useAdpLeaderboard, useAdpTimeseries } from "@/hooks/useAdp";
+import { useSearchParams } from "react-router-dom";
+import { useAdpLeaderboard, useAdpPlayerPicks, useAdpTimeseries } from "@/hooks/useAdp";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -45,11 +46,110 @@ const POSITION_COLORS: Record<string, string> = {
 type LBSortKey = "avg_projection_adp" | "ending_adp" | "avg_pick" | "ownership_pct" | "draft_count";
 type SortDir = "asc" | "desc";
 
+// ---------------------------------------------------------------------------
+// Inline sparkline shown when a leaderboard row is expanded
+// ---------------------------------------------------------------------------
+
+function PlayerTrendChart({ playerId, season, color }: { playerId: number; season: number; color: string }) {
+  const { data: tsData, loading: tsLoading } = useAdpTimeseries(season, String(playerId));
+  const { data: picksData, loading: picksLoading } = useAdpPlayerPicks(playerId, season);
+
+  if (tsLoading || picksLoading) return <p className="py-4 text-center text-xs text-muted-foreground">Loading…</p>;
+
+  const linePoints = (tsData?.data ?? []).map((d) => ({
+    date: d.snapshot_date,
+    adp: d.adp,
+  }));
+  const dotPoints = (picksData?.data ?? []).map((d) => ({
+    date: d.draft_date,
+    adp: d.projection_adp,
+  }));
+
+  if (linePoints.length === 0 && dotPoints.length === 0) {
+    return <p className="py-4 text-center text-xs text-muted-foreground">No trend data available.</p>;
+  }
+
+  // Unified date domain
+  const allAdp = [...linePoints.map((d) => d.adp), ...dotPoints.map((d) => d.adp)];
+  const minAdp = Math.min(...allAdp);
+  const maxAdp = Math.max(...allAdp);
+  const pad = Math.max(1, (maxAdp - minAdp) * 0.15);
+  const domain: [number, number] = [
+    Math.max(1, Math.floor(minAdp - pad)),
+    Math.ceil(maxAdp + pad),
+  ];
+
+  // Format date tick MM/DD
+  const fmtDate = (d: string) => {
+    const parts = d.split("-");
+    return `${parts[1]}/${parts[2]}`;
+  };
+
+  // Build combined chart data keyed by date for the line; dots rendered separately
+  const mergedByDate: Record<string, { date: string; line?: number }> = {};
+  for (const p of linePoints) mergedByDate[p.date] = { date: p.date, line: p.adp };
+  const chartData = Object.values(mergedByDate).sort((a, b) => a.date.localeCompare(b.date));
+
+  return (
+    <div style={{ height: 180 }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <ComposedChart margin={{ top: 8, right: 16, bottom: 20, left: 8 }}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+          <XAxis
+            dataKey="date"
+            type="category"
+            allowDuplicatedCategory={false}
+            tickFormatter={fmtDate}
+            tick={{ fontSize: 9 }}
+            interval="preserveStartEnd"
+            label={{ value: "Date", position: "insideBottom", offset: -10, fontSize: 10 }}
+          />
+          <YAxis
+            reversed
+            domain={domain}
+            tick={{ fontSize: 9 }}
+            width={30}
+            label={{ value: "ADP", angle: -90, position: "insideLeft", offset: 12, fontSize: 10 }}
+          />
+          <Tooltip
+            formatter={(v: number) => v.toFixed(1)}
+            labelFormatter={(l) => `${l}`}
+            contentStyle={{ fontSize: 11 }}
+          />
+          {/* Dots first so line renders on top */}
+          <Scatter
+            data={dotPoints}
+            dataKey="adp"
+            xAxisId={0}
+            yAxisId={0}
+            name="Picks"
+            fill={color}
+            fillOpacity={0.18}
+            r={3}
+            line={false}
+          />
+          <Line
+            data={chartData}
+            dataKey="line"
+            type="monotone"
+            stroke={color}
+            strokeWidth={2}
+            dot={false}
+            name="Trend"
+            connectNulls
+          />
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 function LeaderboardTab({ season, position }: { season: number; position: string }) {
   const [sortBy, setSortBy] = useState<LBSortKey>("avg_projection_adp");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
+  const [expandedId, setExpandedId] = useState<number | null>(null);
   const PAGE_SIZE = 40;
 
   const { data, loading, error } = useAdpLeaderboard(
@@ -171,35 +271,49 @@ function LeaderboardTab({ season, position }: { season: number; position: string
             <tbody>
               {paginated.map((p: AdpPlayerSummaryEntry, i: number) => {
                 const rank = (page - 1) * PAGE_SIZE + i + 1;
+                const expanded = expandedId === p.player_id;
+                const color = POSITION_COLORS[p.position] ?? "#94a3b8";
                 return (
-                  <tr key={p.player_id} className="border-b border-border/50 hover:bg-accent/20">
-                    <td className="py-1.5 text-xs text-muted-foreground">{rank}</td>
-                    <td className="py-1.5 font-medium">
-                      <Link to={`/players/${p.player_id}`} className="hover:text-primary hover:underline">
-                        {p.player_name}
-                      </Link>
-                    </td>
-                    <td className="py-1.5">
-                      <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${posBadge(p.position)}`}>
-                        {p.position}
-                      </span>
-                    </td>
-                    <td className="py-1.5 text-right font-semibold">
-                      {(p.avg_projection_adp ?? p.ending_adp ?? p.avg_pick).toFixed(1)}
-                    </td>
-                    <td className="py-1.5 text-right text-muted-foreground">
-                      {p.ending_adp?.toFixed(1) ?? "—"}
-                    </td>
-                    <td className="py-1.5 text-right text-muted-foreground text-xs">
-                      {p.min_projection_adp != null && p.max_projection_adp != null
-                        ? `${p.min_projection_adp.toFixed(1)}–${p.max_projection_adp.toFixed(1)}`
-                        : "—"}
-                    </td>
-                    <td className="py-1.5 text-right">{p.ownership_pct.toFixed(1)}%</td>
-                    <td className="py-1.5 text-right text-muted-foreground">
-                      {p.draft_count.toLocaleString()}
-                    </td>
-                  </tr>
+                  <>
+                    <tr
+                      key={p.player_id}
+                      onClick={() => setExpandedId(expanded ? null : p.player_id)}
+                      className={`cursor-pointer border-b border-border/50 transition-colors ${expanded ? "bg-accent/30" : "hover:bg-accent/20"}`}
+                    >
+                      <td className="py-1.5 text-xs text-muted-foreground">{rank}</td>
+                      <td className="py-1.5 font-medium">{p.player_name}</td>
+                      <td className="py-1.5">
+                        <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${posBadge(p.position)}`}>
+                          {p.position}
+                        </span>
+                      </td>
+                      <td className="py-1.5 text-right font-semibold">
+                        {(p.avg_projection_adp ?? p.ending_adp ?? p.avg_pick).toFixed(1)}
+                      </td>
+                      <td className="py-1.5 text-right text-muted-foreground">
+                        {p.ending_adp?.toFixed(1) ?? "—"}
+                      </td>
+                      <td className="py-1.5 text-right text-muted-foreground text-xs">
+                        {p.min_projection_adp != null && p.max_projection_adp != null
+                          ? `${p.min_projection_adp.toFixed(1)}–${p.max_projection_adp.toFixed(1)}`
+                          : "—"}
+                      </td>
+                      <td className="py-1.5 text-right">{p.ownership_pct.toFixed(1)}%</td>
+                      <td className="py-1.5 text-right text-muted-foreground">
+                        {p.draft_count.toLocaleString()}
+                      </td>
+                    </tr>
+                    {expanded && (
+                      <tr key={`${p.player_id}-expand`} className="bg-accent/10">
+                        <td colSpan={8} className="px-4 pb-3 pt-1">
+                          <p className="text-xs font-medium mb-1" style={{ color }}>
+                            {p.player_name} — ADP Trend ({season})
+                          </p>
+                          <PlayerTrendChart playerId={p.player_id} season={season} color={color} />
+                        </td>
+                      </tr>
+                    )}
+                  </>
                 );
               })}
             </tbody>

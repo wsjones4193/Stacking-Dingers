@@ -2,7 +2,7 @@
  * Hooks for the three ADP Explorer views: scatter, movement, and scarcity.
  */
 import { useEffect, useState } from "react";
-import { getAdpLeaderboard, getAdpMovement, getAdpRoundComposition, getAdpScarcity, getAdpScarcityCache, getAdpScatter, getAdpTimeseries } from "@/lib/api";
+import { getAdpLeaderboard, getAdpMovement, getAdpPlayerPicks, getAdpRoundComposition, getAdpScarcity, getAdpScarcityCache, getAdpScatter, getAdpTimeseries } from "@/lib/api";
 import type {
   AdpDailyTimeseriesEntry,
   AdpMovementPoint,
@@ -126,6 +126,23 @@ export function useAdpTimeseries(season: number, playerIds?: string, position?: 
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
   }, [season, playerIds, position]);
+
+  return { data, loading, error };
+}
+
+export function useAdpPlayerPicks(playerId: number | null, season: number) {
+  const [data, setData] = useState<DataResponse<{ draft_date: string; projection_adp: number }[]> | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (playerId == null) { setData(null); return; }
+    setLoading(true);
+    getAdpPlayerPicks(playerId, season)
+      .then(setData)
+      .catch((e: Error) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [playerId, season]);
 
   return { data, loading, error };
 }

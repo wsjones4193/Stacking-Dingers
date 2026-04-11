@@ -127,6 +127,9 @@ export const getAdpRoundComposition = (season: number) =>
 export const getAdpTimeseries = (season: number, playerIds?: string, position?: string, limit = 10) =>
   get<DataResponse<AdpDailyTimeseriesEntry[]>>("/api/adp/timeseries", { season, player_ids: playerIds, position, limit });
 
+export const getAdpPlayerPicks = (player_id: number, season: number) =>
+  get<DataResponse<{ draft_date: string; projection_adp: number }[]>>("/api/adp/player-picks", { player_id, season });
+
 // ---------------------------------------------------------------------------
 // Leaderboard
 // ---------------------------------------------------------------------------

@@ -20,7 +20,7 @@ from backend.db.deps import get_session
 import sqlite3
 from pathlib import Path
 
-from backend.db.models import AdpSnapshot, Player, WeeklyScore
+from backend.db.models import AdpSnapshot, Draft, Pick, Player, WeeklyScore
 
 # Path to the tiny pre-computed cache DB shipped with each deployment
 _ADP_CACHE_DB = Path(__file__).resolve().parent.parent.parent / "data" / "adp_cache.db"
@@ -394,5 +394,34 @@ def adp_timeseries(
             "season": r[3], "snapshot_date": r[4], "adp": r[5],
         }
         for r in rows
+    ]
+    return DataResponse(data=data, sample_size=len(data), data_as_of=date.today().isoformat())
+
+
+# ---------------------------------------------------------------------------
+# GET /api/adp/player-picks?player_id=123&season=2025
+# Returns every individual pick's (draft_date, projection_adp) for scatter dots
+# ---------------------------------------------------------------------------
+
+@router.get("/player-picks", response_model=DataResponse)
+def adp_player_picks(
+    session: SessionDep,
+    player_id: int = Query(...),
+    season: int = Query(default=2025),
+):
+    """Raw per-pick projection_adp values for a player, used as scatter dots behind the trend line."""
+    rows = session.exec(
+        select(Draft.draft_date, Pick.projection_adp)
+        .join(Draft, Pick.draft_id == Draft.draft_id)
+        .where(Pick.player_id == player_id)
+        .where(Draft.season == season)
+        .where(Pick.projection_adp.is_not(None))  # type: ignore[union-attr]
+        .order_by(Draft.draft_date)
+    ).all()
+
+    data = [
+        {"draft_date": str(d), "projection_adp": float(adp)}
+        for d, adp in rows
+        if adp != 240.0  # exclude fill values
     ]
     return DataResponse(data=data, sample_size=len(data), data_as_of=date.today().isoformat())
