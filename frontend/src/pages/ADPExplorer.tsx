@@ -58,17 +58,9 @@ function PlayerTrendChart({ playerId, season, color }: { playerId: number; seaso
 
   if (tsLoading || picksLoading) return <p className="py-4 text-center text-xs text-muted-foreground">Loading…</p>;
 
-  // --- Histogram: bucket actual pick_number by round (12 picks per round) ---
-  const ROUND_SIZE = 12;
-  const picks = picksData?.data ?? [];
-  const roundCounts: Record<number, number> = {};
-  for (const p of picks) {
-    const round = Math.ceil(p.pick_number / ROUND_SIZE);
-    roundCounts[round] = (roundCounts[round] ?? 0) + 1;
-  }
-  const histData = Object.entries(roundCounts)
-    .map(([r, count]) => ({ round: Number(r), count }))
-    .sort((a, b) => a.round - b.round);
+  // --- Histogram: pre-bucketed by round from adp_cache.db ---
+  const histData = (picksData?.data ?? []).map((d) => ({ round: d.round_number, count: d.count }));
+  const totalDrafts = histData.reduce((s, d) => s + d.count, 0);
 
   // Convert to timestamps for numeric XAxis (required for Scatter to render in ComposedChart)
   const toTs = (dateStr: string) => new Date(dateStr + "T12:00:00Z").getTime();
@@ -138,7 +130,7 @@ function PlayerTrendChart({ playerId, season, color }: { playerId: number; seaso
 
       {/* Pick number histogram — 1/3 width on desktop */}
       <div style={{ height: 190 }}>
-        <p className="text-[10px] text-muted-foreground mb-1">Pick # distribution by round ({picks.length.toLocaleString()} drafts)</p>
+        <p className="text-[10px] text-muted-foreground mb-1">Pick # by round ({totalDrafts.toLocaleString()} drafts)</p>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={histData} margin={{ top: 4, right: 8, bottom: 20, left: -10 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />

@@ -54,6 +54,16 @@ def _ensure_tables(conn: sqlite3.Connection) -> None:
         )
     """)
     conn.execute("""
+        CREATE TABLE IF NOT EXISTS adp_pick_distribution (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            player_id INTEGER NOT NULL,
+            season INTEGER NOT NULL,
+            round_number INTEGER NOT NULL,
+            count INTEGER NOT NULL,
+            UNIQUE(player_id, season, round_number)
+        )
+    """)
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS adp_round_composition (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             season INTEGER NOT NULL,
@@ -271,6 +281,23 @@ def main() -> None:
     )
     conn.commit()
     print(f"  Wrote {len(round_comp):,} round composition rows")
+
+    # ------------------------------------------------------------------
+    # 4. AdpPickDistribution — per player/season, pick count per round
+    # ------------------------------------------------------------------
+    print("Computing pick distributions ...")
+    pick_dist = (
+        picks_df.groupby(["player_id", "season", "round_number"])
+        .size()
+        .rename("count")
+        .reset_index()
+    )
+    conn.execute("DELETE FROM adp_pick_distribution")
+    pick_dist[["player_id", "season", "round_number", "count"]].to_sql(
+        "adp_pick_distribution", conn, if_exists="append", index=False
+    )
+    conn.commit()
+    print(f"  Wrote {len(pick_dist):,} pick distribution rows")
 
     conn.close()
     print("Done.")

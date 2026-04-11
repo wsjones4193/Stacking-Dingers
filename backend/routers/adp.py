@@ -400,26 +400,21 @@ def adp_timeseries(
 
 # ---------------------------------------------------------------------------
 # GET /api/adp/player-picks?player_id=123&season=2025
-# Returns every individual pick's (draft_date, projection_adp) for scatter dots
+# Returns per-round pick count from adp_cache.db (pre-computed)
 # ---------------------------------------------------------------------------
 
 @router.get("/player-picks", response_model=DataResponse)
 def adp_player_picks(
-    session: SessionDep,
     player_id: int = Query(...),
     season: int = Query(default=2025),
 ):
-    """Raw per-pick projection_adp values for a player, used as scatter dots behind the trend line."""
-    rows = session.exec(
-        select(Draft.draft_date, Pick.projection_adp, Pick.pick_number)
-        .join(Draft, Pick.draft_id == Draft.draft_id)
-        .where(Pick.player_id == player_id)
-        .where(Draft.season == season)
-        .order_by(Draft.draft_date)
-    ).all()
+    """Pre-computed per-round pick count for a player from adp_cache.db."""
+    conn = _cache_conn()
+    rows = conn.execute(
+        "SELECT round_number, count FROM adp_pick_distribution WHERE player_id=? AND season=? ORDER BY round_number",
+        [player_id, season],
+    ).fetchall()
+    conn.close()
 
-    data = [
-        {"draft_date": str(d), "projection_adp": float(adp) if adp and adp != 240.0 else None, "pick_number": pick}
-        for d, adp, pick in rows
-    ]
-    return DataResponse(data=data, sample_size=len(data), data_as_of=date.today().isoformat())
+    data = [{"round_number": r[0], "count": r[1]} for r in rows]
+    return DataResponse(data=data, sample_size=sum(r["count"] for r in data), data_as_of=date.today().isoformat())
