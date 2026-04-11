@@ -562,9 +562,9 @@ function AdpMovementTab({ season, position }: { season: number; position: string
             onChange={(e) => setSearch(e.target.value)}
             className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           />
-          <div className="overflow-y-auto rounded-md border border-border" style={{ height: 420 }}>
+          <div className="overflow-y-auto rounded-md border border-border" style={{ height: 420, backgroundColor: "hsl(32, 40%, 98%)" }}>
             <table className="w-full text-xs">
-              <thead className="sticky top-0 bg-card z-10">
+              <thead className="sticky top-0 z-10" style={{ backgroundColor: "hsl(32, 40%, 98%)" }}>
                 <tr className="border-b border-border text-left text-muted-foreground">
                   <th className="px-2 py-1.5 w-4" />
                   <th className="px-1 py-1.5">Pos</th>
@@ -593,7 +593,7 @@ function AdpMovementTab({ season, position }: { season: number; position: string
                         </span>
                       </td>
                       <td className="px-2 py-1.5 truncate max-w-[100px]">{p.player_name}</td>
-                      <td className="px-2 py-1.5 text-right text-muted-foreground">{p.avg_pick.toFixed(0)}</td>
+                      <td className="px-2 py-1.5 text-right text-muted-foreground">{p.avg_pick.toFixed(1)}</td>
                     </tr>
                   );
                 })}
