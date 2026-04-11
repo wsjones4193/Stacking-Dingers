@@ -567,17 +567,17 @@ function AdpMovementTab({ season, position }: { season: number; position: string
         {isDefaultView && " Showing top 10 players by ADP. Click rows to customize."}
       </p>
 
-      <div className="flex gap-4 items-start">
+      <div className="flex gap-4" style={{ height: 516 }}>
         {/* Left: scrollable player table */}
-        <div className="w-56 shrink-0 flex flex-col gap-2">
+        <div className="w-56 shrink-0 flex flex-col gap-2 h-full">
           <input
             type="text"
             placeholder="Search players…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary shrink-0"
           />
-          <div className="overflow-y-auto rounded-md border border-border" style={{ height: 420, backgroundColor: "hsl(32, 40%, 98%)" }}>
+          <div className="flex-1 overflow-y-auto rounded-md border border-border" style={{ backgroundColor: "hsl(32, 40%, 98%)" }}>
             <table className="w-full text-xs">
               <thead className="sticky top-0 z-10" style={{ backgroundColor: "hsl(32, 40%, 98%)" }}>
                 <tr className="border-b border-border text-left text-muted-foreground">
@@ -628,16 +628,16 @@ function AdpMovementTab({ season, position }: { season: number; position: string
         </div>
 
         {/* Right: chart */}
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 h-full">
           {loading && <LoadingSpinner />}
           {error && <p className="py-8 text-center text-sm text-destructive">{error}</p>}
           {!loading && chartData.length > 0 && (
-            <Card>
-              <CardHeader className="pb-2">
+            <Card className="h-full flex flex-col">
+              <CardHeader className="pb-2 shrink-0">
                 <CardTitle>ADP Movement — {season}</CardTitle>
               </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={420}>
+              <CardContent className="flex-1 min-h-0">
+                <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={chartData} margin={{ top: 4, right: 130, bottom: 24, left: 8 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
                     <XAxis
