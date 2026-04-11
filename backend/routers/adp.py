@@ -411,17 +411,15 @@ def adp_player_picks(
 ):
     """Raw per-pick projection_adp values for a player, used as scatter dots behind the trend line."""
     rows = session.exec(
-        select(Draft.draft_date, Pick.projection_adp)
+        select(Draft.draft_date, Pick.projection_adp, Pick.pick_number)
         .join(Draft, Pick.draft_id == Draft.draft_id)
         .where(Pick.player_id == player_id)
         .where(Draft.season == season)
-        .where(Pick.projection_adp.is_not(None))  # type: ignore[union-attr]
         .order_by(Draft.draft_date)
     ).all()
 
     data = [
-        {"draft_date": str(d), "projection_adp": float(adp)}
-        for d, adp in rows
-        if adp != 240.0  # exclude fill values
+        {"draft_date": str(d), "projection_adp": float(adp) if adp and adp != 240.0 else None, "pick_number": pick}
+        for d, adp, pick in rows
     ]
     return DataResponse(data=data, sample_size=len(data), data_as_of=date.today().isoformat())

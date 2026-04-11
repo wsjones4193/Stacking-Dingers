@@ -6,8 +6,10 @@
  */
 import { useMemo, useState } from "react";
 import {
+  Bar,
+  BarChart,
   CartesianGrid,
-  ComposedChart,
+
   Legend,
   Line,
   LineChart,
@@ -56,33 +58,43 @@ function PlayerTrendChart({ playerId, season, color }: { playerId: number; seaso
 
   if (tsLoading || picksLoading) return <p className="py-4 text-center text-xs text-muted-foreground">Loading…</p>;
 
+  // --- Histogram: bucket actual pick_number by round (12 picks per round) ---
+  const ROUND_SIZE = 12;
+  const picks = picksData?.data ?? [];
+  const roundCounts: Record<number, number> = {};
+  for (const p of picks) {
+    const round = Math.ceil(p.pick_number / ROUND_SIZE);
+    roundCounts[round] = (roundCounts[round] ?? 0) + 1;
+  }
+  const histData = Object.entries(roundCounts)
+    .map(([r, count]) => ({ round: Number(r), count }))
+    .sort((a, b) => a.round - b.round);
+
   // Convert to timestamps for numeric XAxis (required for Scatter to render in ComposedChart)
-  const toTs = (dateStr: string) => new Date(dateStr).getTime();
+  const toTs = (dateStr: string) => new Date(dateStr + "T12:00:00Z").getTime();
 
   const linePoints = (tsData?.data ?? []).map((d) => ({
     x: toTs(d.snapshot_date),
     adp: d.adp,
   }));
-  const dotPoints = (picksData?.data ?? []).map((d) => ({
-    x: toTs(d.draft_date),
-    adp: d.projection_adp,
-  }));
 
-  if (linePoints.length === 0 && dotPoints.length === 0) {
+  if (linePoints.length === 0 && histData.length === 0) {
     return <p className="py-4 text-center text-xs text-muted-foreground">No trend data available.</p>;
   }
 
-  const allAdp = [...linePoints.map((d) => d.adp), ...dotPoints.map((d) => d.adp)];
-  const minAdp = Math.min(...allAdp);
-  const maxAdp = Math.max(...allAdp);
+  const adpVals = linePoints.map((d) => d.adp);
+  const minAdp = Math.min(...adpVals);
+  const maxAdp = Math.max(...adpVals);
   const pad = Math.max(1, (maxAdp - minAdp) * 0.15);
   const adpDomain: [number, number] = [
     Math.max(1, Math.floor(minAdp - pad)),
     Math.ceil(maxAdp + pad),
   ];
 
-  const allTs = [...linePoints.map((d) => d.x), ...dotPoints.map((d) => d.x)];
-  const xDomain: [number, number] = [Math.min(...allTs), Math.max(...allTs)];
+  const xDomain: [number, number] = [
+    Math.min(...linePoints.map((d) => d.x)),
+    Math.max(...linePoints.map((d) => d.x)),
+  ];
 
   const fmtTs = (ts: number) => {
     const d = new Date(ts);
@@ -90,55 +102,62 @@ function PlayerTrendChart({ playerId, season, color }: { playerId: number; seaso
   };
 
   return (
-    <div style={{ height: 180 }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart margin={{ top: 8, right: 16, bottom: 20, left: 8 }}>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-          <XAxis
-            dataKey="x"
-            type="number"
-            scale="time"
-            domain={xDomain}
-            tickFormatter={fmtTs}
-            tick={{ fontSize: 9 }}
-            tickCount={6}
-            label={{ value: "Date", position: "insideBottom", offset: -10, fontSize: 10 }}
-          />
-          <YAxis
-            dataKey="adp"
-            reversed
-            domain={adpDomain}
-            tick={{ fontSize: 9 }}
-            width={30}
-            label={{ value: "ADP", angle: -90, position: "insideLeft", offset: 12, fontSize: 10 }}
-          />
-          <Tooltip
-            formatter={(v: number) => v.toFixed(1)}
-            labelFormatter={(ts: number) => fmtTs(ts)}
-            contentStyle={{ fontSize: 11 }}
-          />
-          {/* Dots behind line */}
-          <Scatter
-            data={dotPoints}
-            name="Picks"
-            fill={color}
-            fillOpacity={0.25}
-            r={3}
-            line={false}
-          />
-          {/* Trend line on top */}
-          <Line
-            data={linePoints}
-            dataKey="adp"
-            type="monotone"
-            stroke={color}
-            strokeWidth={2}
-            dot={false}
-            name="Trend"
-            connectNulls
-          />
-        </ComposedChart>
-      </ResponsiveContainer>
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {/* Projection ADP trend — 2/3 width on desktop */}
+      <div className="sm:col-span-2" style={{ height: 190 }}>
+        <p className="text-[10px] text-muted-foreground mb-1">Projection ADP over time</p>
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={linePoints} margin={{ top: 4, right: 16, bottom: 20, left: 8 }}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+            <XAxis
+              dataKey="x"
+              type="number"
+              scale="time"
+              domain={xDomain}
+              tickFormatter={fmtTs}
+              tick={{ fontSize: 9 }}
+              tickCount={6}
+              label={{ value: "Date", position: "insideBottom", offset: -10, fontSize: 10 }}
+            />
+            <YAxis
+              reversed
+              domain={adpDomain}
+              tick={{ fontSize: 9 }}
+              width={30}
+              label={{ value: "ADP", angle: -90, position: "insideLeft", offset: 12, fontSize: 10 }}
+            />
+            <Tooltip
+              formatter={(v: number) => v.toFixed(1)}
+              labelFormatter={(ts: number) => fmtTs(ts)}
+              contentStyle={{ fontSize: 11 }}
+            />
+            <Line dataKey="adp" type="monotone" stroke={color} strokeWidth={2} dot={false} name="Projection ADP" connectNulls isAnimationActive={false} />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Pick number histogram — 1/3 width on desktop */}
+      <div style={{ height: 190 }}>
+        <p className="text-[10px] text-muted-foreground mb-1">Pick # distribution by round ({picks.length.toLocaleString()} drafts)</p>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={histData} margin={{ top: 4, right: 8, bottom: 20, left: -10 }}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+            <XAxis
+              dataKey="round"
+              tick={{ fontSize: 9 }}
+              tickFormatter={(r) => `R${r}`}
+              label={{ value: "Round", position: "insideBottom", offset: -10, fontSize: 10 }}
+            />
+            <YAxis tick={{ fontSize: 9 }} allowDecimals={false} />
+            <Tooltip
+              formatter={(v: number) => [v.toLocaleString(), "Drafts"]}
+              labelFormatter={(r) => `Round ${r}`}
+              contentStyle={{ fontSize: 11 }}
+            />
+            <Bar dataKey="count" fill={color} fillOpacity={0.75} radius={[2, 2, 0, 0]} name="Drafts" isAnimationActive={false} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 }
