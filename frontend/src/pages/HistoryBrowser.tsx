@@ -8,6 +8,9 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Scatter,
   ScatterChart,
@@ -15,7 +18,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { ArrowLeft, BarChart2, BookOpen, Layers, Star, TrendingUp, Users } from "lucide-react";
+import { ArrowLeft, BarChart2, BookOpen, Layers, PieChart, Star, TrendingUp, Users } from "lucide-react";
 import {
   useAdpAccuracyData,
   useCeilingData,
@@ -23,6 +26,7 @@ import {
   useDraftStructureData,
   useStackData,
 } from "@/hooks/useHistory";
+import { useAdpRoundComposition, useAdpScarcityCache } from "@/hooks/useAdp";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -33,6 +37,12 @@ import { formatPct, formatScore } from "@/lib/utils";
 import { Link as RouterLink } from "react-router-dom";
 
 const SEASONS = [2026, 2025, 2024, 2023, 2022];
+
+const POSITION_COLORS: Record<string, string> = {
+  P: "#8B5CF6",
+  IF: "#14B8A6",
+  OF: "#F97316",
+};
 
 const MODULES = [
   {
@@ -64,6 +74,18 @@ const MODULES = [
     title: "ADP Accuracy",
     icon: TrendingUp,
     description: "Projected vs. actual BPCOR: over and under-performers by position.",
+  },
+  {
+    id: "positional-scarcity",
+    title: "Positional Scarcity",
+    icon: PieChart,
+    description: "Average cumulative positional supply by overall pick number.",
+  },
+  {
+    id: "round-composition",
+    title: "Round Composition",
+    icon: BarChart2,
+    description: "Position breakdown per round — when pitchers, infielders, and outfielders come off the board.",
   },
   {
     id: "player-history",
@@ -524,6 +546,209 @@ function AdpAccuracyModule({ season }: { season: number }) {
 }
 
 // ---------------------------------------------------------------------------
+// Module 6: Positional Scarcity
+// ---------------------------------------------------------------------------
+
+function PositionalScarcityModule({ season }: { season: number }) {
+  const { data, loading, error } = useAdpScarcityCache(season);
+
+  if (loading) return <LoadingSpinner />;
+  if (error) return <p className="text-destructive text-sm">{error}</p>;
+  if (!data) return null;
+
+  if (data.data.length === 0) {
+    return (
+      <div className="py-12 text-center text-sm text-muted-foreground">
+        No scarcity data for {season}.
+      </div>
+    );
+  }
+
+  const positions = ["P", "IF", "OF"];
+  const sampled = data.data.filter((d) => d.pick_number % 5 === 0 || d.pick_number === 1);
+
+  const byPick: Record<number, Record<string, number>> = {};
+  for (const row of sampled) {
+    if (!byPick[row.pick_number]) byPick[row.pick_number] = { pick_number: row.pick_number };
+    byPick[row.pick_number][row.position] = row.avg_per_draft;
+  }
+  const chartData = Object.values(byPick).sort((a, b) => a.pick_number - b.pick_number);
+
+  const maxByPos: Record<string, number> = {};
+  for (const pos of positions) {
+    const last = data.data.filter((d) => d.position === pos).at(-1);
+    maxByPos[pos] = last?.avg_per_draft ?? 0;
+  }
+
+  const milestones: Record<string, { pick: number; count: number }[]> = {};
+  for (const pos of positions) {
+    const posRows = data.data.filter((d) => d.position === pos);
+    const max = Math.floor(maxByPos[pos]);
+    milestones[pos] = [];
+    for (let n = 1; n <= Math.min(max, 5); n++) {
+      const row = posRows.find((d) => d.avg_per_draft >= n);
+      if (row) milestones[pos].push({ pick: row.pick_number, count: n });
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-muted-foreground">
+        Average cumulative number of players at each position drafted per team by pick X.
+        Shows when the draft field starts taking a position — and when supply runs dry.
+      </p>
+
+      <div className="grid grid-cols-3 gap-3">
+        {positions.map((pos) => (
+          <Card key={pos}>
+            <CardHeader className="pb-1 pt-3 px-4">
+              <CardTitle className="text-sm" style={{ color: POSITION_COLORS[pos] }}>
+                {pos} <span className="text-muted-foreground font-normal text-xs">avg {maxByPos[pos].toFixed(1)} per roster</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-3 text-xs space-y-1">
+              {milestones[pos].map(({ pick, count }) => (
+                <div key={count} className="flex justify-between">
+                  <span className="text-muted-foreground">{count}st drafted by pick</span>
+                  <span className="font-semibold">{pick}</span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Avg Cumulative P / IF / OF Drafted per Team — {season}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={340}>
+            <LineChart data={chartData} margin={{ top: 4, right: 8, bottom: 16, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis
+                dataKey="pick_number"
+                label={{ value: "Overall Pick #", position: "insideBottom", offset: -8, fontSize: 11 }}
+                tick={{ fontSize: 11 }}
+              />
+              <YAxis
+                tickFormatter={(v) => v.toFixed(1)}
+                tick={{ fontSize: 11 }}
+                label={{ value: "Avg # Drafted", angle: -90, position: "insideLeft", offset: 10, fontSize: 11 }}
+              />
+              <Tooltip
+                formatter={(v: number, name: string) => [`${v.toFixed(2)} players`, name]}
+                labelFormatter={(l) => `Pick ${l}`}
+              />
+              <Legend verticalAlign="top" />
+              {positions.map((pos) => (
+                <Line
+                  key={pos}
+                  type="monotone"
+                  dataKey={pos}
+                  stroke={POSITION_COLORS[pos]}
+                  dot={false}
+                  strokeWidth={2.5}
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      <DataAsOf dataAsOf={data.data_as_of} />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Module 7: Round Composition
+// ---------------------------------------------------------------------------
+
+function RoundCompositionModule({ season }: { season: number }) {
+  const { data, loading, error } = useAdpRoundComposition(season);
+
+  if (loading) return <LoadingSpinner />;
+  if (error) return <p className="text-destructive text-sm">{error}</p>;
+  if (!data) return null;
+
+  if (data.data.length === 0) {
+    return (
+      <div className="py-12 text-center text-sm text-muted-foreground">
+        No round composition data for {season}.
+      </div>
+    );
+  }
+
+  const byRound: Record<number, Record<string, number | string>> = {};
+  for (const row of data.data) {
+    if (!byRound[row.round_number]) byRound[row.round_number] = { round: row.round_number };
+    byRound[row.round_number][row.position] = row.pct_of_round;
+  }
+  const chartData = Object.values(byRound).sort((a, b) => (a.round as number) - (b.round as number));
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-muted-foreground">
+        Percentage of picks in each round taken at each position. Pitchers dominate early rounds
+        in high-upside drafts; position group shifts show positional run timing.
+      </p>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Position % by Round — {season}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={380}>
+            <BarChart data={chartData} margin={{ top: 4, right: 8, bottom: 16, left: -10 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis
+                dataKey="round"
+                label={{ value: "Round", position: "insideBottom", offset: -8, fontSize: 11 }}
+                tick={{ fontSize: 11 }}
+              />
+              <YAxis tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11 }} domain={[0, 100]} />
+              <Tooltip formatter={(v: number) => `${v.toFixed(1)}%`} labelFormatter={(l) => `Round ${l}`} />
+              <Legend verticalAlign="top" />
+              <Bar dataKey="P" stackId="a" fill={POSITION_COLORS["P"]} name="P" />
+              <Bar dataKey="IF" stackId="a" fill={POSITION_COLORS["IF"]} name="IF" />
+              <Bar dataKey="OF" stackId="a" fill={POSITION_COLORS["OF"]} name="OF" radius={[2, 2, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="pt-4">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                <th className="pb-2">Round</th>
+                <th className="pb-2 text-right" style={{ color: POSITION_COLORS["P"] }}>P %</th>
+                <th className="pb-2 text-right" style={{ color: POSITION_COLORS["IF"] }}>IF %</th>
+                <th className="pb-2 text-right" style={{ color: POSITION_COLORS["OF"] }}>OF %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {chartData.map((row) => (
+                <tr key={row.round as number} className="border-b border-border/50 hover:bg-accent/20">
+                  <td className="py-1.5 font-medium">Round {row.round}</td>
+                  <td className="py-1.5 text-right">{((row["P"] as number) ?? 0).toFixed(1)}%</td>
+                  <td className="py-1.5 text-right">{((row["IF"] as number) ?? 0).toFixed(1)}%</td>
+                  <td className="py-1.5 text-right">{((row["OF"] as number) ?? 0).toFixed(1)}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
+
+      <DataAsOf dataAsOf={data.data_as_of} />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Module router
 // ---------------------------------------------------------------------------
 
@@ -533,6 +758,8 @@ const MODULE_COMPONENTS: Record<string, React.ComponentType<{ season: number }>>
   "draft-structure": DraftStructureModule,
   combos: CombosModule,
   "adp-accuracy": AdpAccuracyModule,
+  "positional-scarcity": PositionalScarcityModule,
+  "round-composition": RoundCompositionModule,
 };
 
 function ModuleView({ moduleId, season }: { moduleId: string; season: number }) {
