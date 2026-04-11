@@ -45,7 +45,7 @@ const POSITION_COLORS: Record<string, string> = {
 // Tab 1: ADP Leaderboard
 // ---------------------------------------------------------------------------
 
-type LBSortKey = "avg_projection_adp" | "ending_adp" | "avg_pick" | "ownership_pct" | "pick_std" | "draft_count";
+type LBSortKey = "avg_projection_adp" | "ending_adp" | "avg_pick" | "ownership_pct" | "draft_count";
 type SortDir = "asc" | "desc";
 
 function LeaderboardTab({ season, position }: { season: number; position: string }) {
@@ -159,12 +159,6 @@ function LeaderboardTab({ season, position }: { season: number; position: string
                 </th>
                 <th
                   className="pb-2 text-right cursor-pointer hover:text-foreground select-none"
-                  onClick={() => toggleSort("pick_std")}
-                >
-                  Std Dev<SortIcon col="pick_std" />
-                </th>
-                <th
-                  className="pb-2 text-right cursor-pointer hover:text-foreground select-none"
                   onClick={() => toggleSort("ownership_pct")}
                 >
                   Own %<SortIcon col="ownership_pct" />
@@ -203,9 +197,6 @@ function LeaderboardTab({ season, position }: { season: number; position: string
                       {p.min_projection_adp != null && p.max_projection_adp != null
                         ? `${p.min_projection_adp.toFixed(1)}–${p.max_projection_adp.toFixed(1)}`
                         : "—"}
-                    </td>
-                    <td className="py-1.5 text-right text-muted-foreground">
-                      {p.pick_std != null ? `±${p.pick_std.toFixed(1)}` : "—"}
                     </td>
                     <td className="py-1.5 text-right">{p.ownership_pct.toFixed(1)}%</td>
                     <td className="py-1.5 text-right text-muted-foreground">
