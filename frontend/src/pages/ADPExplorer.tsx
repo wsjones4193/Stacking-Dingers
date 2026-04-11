@@ -56,12 +56,15 @@ function PlayerTrendChart({ playerId, season, color }: { playerId: number; seaso
 
   if (tsLoading || picksLoading) return <p className="py-4 text-center text-xs text-muted-foreground">Loading…</p>;
 
+  // Convert to timestamps for numeric XAxis (required for Scatter to render in ComposedChart)
+  const toTs = (dateStr: string) => new Date(dateStr).getTime();
+
   const linePoints = (tsData?.data ?? []).map((d) => ({
-    date: d.snapshot_date,
+    x: toTs(d.snapshot_date),
     adp: d.adp,
   }));
   const dotPoints = (picksData?.data ?? []).map((d) => ({
-    date: d.draft_date,
+    x: toTs(d.draft_date),
     adp: d.projection_adp,
   }));
 
@@ -69,26 +72,22 @@ function PlayerTrendChart({ playerId, season, color }: { playerId: number; seaso
     return <p className="py-4 text-center text-xs text-muted-foreground">No trend data available.</p>;
   }
 
-  // Unified date domain
   const allAdp = [...linePoints.map((d) => d.adp), ...dotPoints.map((d) => d.adp)];
   const minAdp = Math.min(...allAdp);
   const maxAdp = Math.max(...allAdp);
   const pad = Math.max(1, (maxAdp - minAdp) * 0.15);
-  const domain: [number, number] = [
+  const adpDomain: [number, number] = [
     Math.max(1, Math.floor(minAdp - pad)),
     Math.ceil(maxAdp + pad),
   ];
 
-  // Format date tick MM/DD
-  const fmtDate = (d: string) => {
-    const parts = d.split("-");
-    return `${parts[1]}/${parts[2]}`;
-  };
+  const allTs = [...linePoints.map((d) => d.x), ...dotPoints.map((d) => d.x)];
+  const xDomain: [number, number] = [Math.min(...allTs), Math.max(...allTs)];
 
-  // Build combined chart data keyed by date for the line; dots rendered separately
-  const mergedByDate: Record<string, { date: string; line?: number }> = {};
-  for (const p of linePoints) mergedByDate[p.date] = { date: p.date, line: p.adp };
-  const chartData = Object.values(mergedByDate).sort((a, b) => a.date.localeCompare(b.date));
+  const fmtTs = (ts: number) => {
+    const d = new Date(ts);
+    return `${String(d.getUTCMonth() + 1).padStart(2, "0")}/${String(d.getUTCDate()).padStart(2, "0")}`;
+  };
 
   return (
     <div style={{ height: 180 }}>
@@ -96,41 +95,41 @@ function PlayerTrendChart({ playerId, season, color }: { playerId: number; seaso
         <ComposedChart margin={{ top: 8, right: 16, bottom: 20, left: 8 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
           <XAxis
-            dataKey="date"
-            type="category"
-            allowDuplicatedCategory={false}
-            tickFormatter={fmtDate}
+            dataKey="x"
+            type="number"
+            scale="time"
+            domain={xDomain}
+            tickFormatter={fmtTs}
             tick={{ fontSize: 9 }}
-            interval="preserveStartEnd"
+            tickCount={6}
             label={{ value: "Date", position: "insideBottom", offset: -10, fontSize: 10 }}
           />
           <YAxis
+            dataKey="adp"
             reversed
-            domain={domain}
+            domain={adpDomain}
             tick={{ fontSize: 9 }}
             width={30}
             label={{ value: "ADP", angle: -90, position: "insideLeft", offset: 12, fontSize: 10 }}
           />
           <Tooltip
             formatter={(v: number) => v.toFixed(1)}
-            labelFormatter={(l) => `${l}`}
+            labelFormatter={(ts: number) => fmtTs(ts)}
             contentStyle={{ fontSize: 11 }}
           />
-          {/* Dots first so line renders on top */}
+          {/* Dots behind line */}
           <Scatter
             data={dotPoints}
-            dataKey="adp"
-            xAxisId={0}
-            yAxisId={0}
             name="Picks"
             fill={color}
-            fillOpacity={0.18}
+            fillOpacity={0.25}
             r={3}
             line={false}
           />
+          {/* Trend line on top */}
           <Line
-            data={chartData}
-            dataKey="line"
+            data={linePoints}
+            dataKey="adp"
             type="monotone"
             stroke={color}
             strokeWidth={2}
