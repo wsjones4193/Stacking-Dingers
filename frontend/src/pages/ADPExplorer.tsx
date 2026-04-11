@@ -438,6 +438,21 @@ function AdpVsDraftRateTab({ season, position }: { season: number; position: str
 // Distinct stroke styles so same-position players are still distinguishable
 const STROKE_DASHES = ["", "6 3", "2 2", "8 2 2 2"];
 
+// Label rendered only at the last data point of each line
+function LineEndLabel({
+  x = 0, y = 0, index = 0, value, displayName, color, dataLength,
+}: {
+  x?: number; y?: number; index?: number; value?: number;
+  displayName: string; color: string; dataLength: number;
+}) {
+  if (index !== dataLength - 1 || value == null) return null;
+  return (
+    <text x={x + 7} y={y} fill={color} fontSize={10} dominantBaseline="middle" fontWeight={600}>
+      {displayName}
+    </text>
+  );
+}
+
 function AdpMovementTab({ season, position }: { season: number; position: string }) {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [search, setSearch] = useState("");
@@ -608,7 +623,7 @@ function AdpMovementTab({ season, position }: { season: number; position: string
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={420}>
-                  <LineChart data={chartData} margin={{ top: 4, right: 16, bottom: 24, left: 8 }}>
+                  <LineChart data={chartData} margin={{ top: 4, right: 130, bottom: 24, left: 8 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
                     <XAxis
                       dataKey="snapshot_date"
@@ -628,24 +643,32 @@ function AdpMovementTab({ season, position }: { season: number; position: string
                       formatter={(v: number, name: string) => [`ADP ${v.toFixed(1)}`, name.split("__")[0]]}
                       itemSorter={(item) => Number(item.value)}
                     />
-                    <Legend
-                      formatter={(value) => value.split("__")[0]}
-                      wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
-                    />
-                    {playerKeys.map((key) => (
-                      <Line
-                        key={key}
-                        type="monotone"
-                        dataKey={key}
-                        name={key}
-                        stroke={POSITION_COLORS[keyPositionMap[key]] ?? "#94a3b8"}
-                        strokeDasharray={keyDashMap[key]}
-                        strokeOpacity={1}
-                        dot={false}
-                        strokeWidth={2.5}
-                        connectNulls
-                      />
-                    ))}
+                    {playerKeys.map((key) => {
+                      const color = POSITION_COLORS[keyPositionMap[key]] ?? "#94a3b8";
+                      const displayName = key.split("__")[0];
+                      return (
+                        <Line
+                          key={key}
+                          type="monotone"
+                          dataKey={key}
+                          name={key}
+                          stroke={color}
+                          strokeDasharray={keyDashMap[key]}
+                          strokeOpacity={1}
+                          dot={false}
+                          strokeWidth={2.5}
+                          connectNulls
+                          label={(props) => (
+                            <LineEndLabel
+                              {...props}
+                              displayName={displayName}
+                              color={color}
+                              dataLength={chartData.length}
+                            />
+                          )}
+                        />
+                      );
+                    })}
                   </LineChart>
                 </ResponsiveContainer>
               </CardContent>
