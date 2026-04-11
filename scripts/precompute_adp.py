@@ -98,8 +98,10 @@ def main() -> None:
         conn,
     )
     print(f"  Loaded {len(picks_df):,} picks across {picks_df['season'].nunique()} seasons")
-    has_proj_adp = picks_df["projection_adp"].notna().sum() > 0
-    print(f"  projection_adp populated: {picks_df['projection_adp'].notna().sum():,} picks")
+    null_proj = picks_df["projection_adp"].isna().sum()
+    print(f"  projection_adp null before fill: {null_proj:,} picks — filling with 240")
+    picks_df["projection_adp"] = pd.to_numeric(picks_df["projection_adp"], errors="coerce").fillna(240.0)
+    has_proj_adp = True  # always True after fill
 
     # Total drafts per season (needed for ownership %)
     season_draft_counts = (
@@ -127,9 +129,9 @@ def main() -> None:
     player_summary["avg_pick"] = player_summary["avg_pick"].round(2)
     player_summary["pick_std"] = player_summary["pick_std"].round(2)
 
-    # avg/min/max projection_adp: stats from Underdog's projection_adp across all picks
+    # avg/min/max projection_adp: stats from all picks (nulls filled with 240 above)
     proj_adp_stats = (
-        picks_df[picks_df["projection_adp"].notna()]
+        picks_df
         .groupby(["player_id", "season"])["projection_adp"]
         .agg(avg_projection_adp="mean", min_projection_adp="min", max_projection_adp="max")
         .round(2)
@@ -158,7 +160,7 @@ def main() -> None:
     conn.commit()
 
     if has_proj_adp:
-        proj_picks = picks_df[picks_df["projection_adp"].notna()].copy()
+        proj_picks = picks_df.copy()
         proj_picks["draft_date"] = pd.to_datetime(proj_picks["draft_date"]).dt.date
 
         # Daily avg projection_adp per player/season
@@ -199,9 +201,6 @@ def main() -> None:
             print(f"  Wrote {len(ffilled_rows):,} daily ADP rows")
         else:
             print("  No projection_adp data to build time series from")
-    else:
-        print("  Skipped: projection_adp not yet populated in picks table")
-        print("  Re-run after re-ingesting CSVs with load_historical.py")
 
     # Write to DB
     conn.execute("DELETE FROM adp_player_summary")

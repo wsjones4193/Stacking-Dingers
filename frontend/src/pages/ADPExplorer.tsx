@@ -374,12 +374,12 @@ function AdpVsDraftRateTab({ season, position }: { season: number; position: str
     );
   }
 
-  // Use avg_projection_adp as X value, fallback chain for missing data
+  // Only include players with actual projection_adp data — no fallback to avg_pick
   type ScatterPoint = AdpPlayerSummaryEntry & { adp_x: number };
   const byPos: Record<string, ScatterPoint[]> = {};
   for (const p of data.data) {
     if (!byPos[p.position]) byPos[p.position] = [];
-    byPos[p.position].push({ ...p, adp_x: p.avg_projection_adp ?? p.ending_adp ?? p.avg_pick });
+    byPos[p.position].push({ ...p, adp_x: p.avg_projection_adp ?? p.avg_pick });
   }
 
   return (
