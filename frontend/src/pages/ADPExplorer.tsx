@@ -597,7 +597,7 @@ function AdpMovementTab({ season, position }: { season: number; position: string
           </Button>
 
           {dropdownOpen && (
-            <div className="absolute z-20 mt-1 w-64 rounded-md border border-border bg-popover shadow-lg flex flex-col max-h-80">
+            <div className="absolute z-20 mt-1 w-64 rounded-md border border-border shadow-lg flex flex-col max-h-80" style={{ backgroundColor: "hsl(var(--card))", backdropFilter: "none" }}>
               {/* Search inside dropdown */}
               <div className="p-2 border-b border-border">
                 <input
