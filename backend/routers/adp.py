@@ -239,14 +239,29 @@ def adp_leaderboard(
     season: int = Query(default=2025),
     position: Optional[str] = Query(default=None, description="P | IF | OF"),
 ):
-    """Per-player ADP summary derived from actual draft picks."""
+    """Per-player ADP summary. ending_adp = most recent projection_adp snapshot."""
     conn = _cache_conn()
-    sql = "SELECT player_id, player_name, position, avg_pick, pick_std, ownership_pct, draft_count, total_season_drafts FROM adp_player_summary WHERE season=?"
-    params: list = [season]
+    pos_filter = " AND s.position=?" if position else ""
+    sql = f"""
+        SELECT
+            s.player_id, s.player_name, s.position,
+            s.avg_pick, s.pick_std, s.ownership_pct, s.draft_count, s.total_season_drafts,
+            t.adp AS ending_adp
+        FROM adp_player_summary s
+        LEFT JOIN (
+            SELECT player_id, adp
+            FROM adp_daily_timeseries
+            WHERE season = ?
+              AND snapshot_date = (
+                  SELECT MAX(snapshot_date) FROM adp_daily_timeseries WHERE season = ?
+              )
+        ) t ON s.player_id = t.player_id
+        WHERE s.season = ?{pos_filter}
+        ORDER BY COALESCE(t.adp, s.avg_pick)
+    """
+    params: list = [season, season, season]
     if position:
-        sql += " AND position=?"
         params.append(position.upper())
-    sql += " ORDER BY avg_pick"
     rows = conn.execute(sql, params).fetchall()
     conn.close()
 
@@ -255,6 +270,7 @@ def adp_leaderboard(
             "player_id": r[0], "player_name": r[1], "position": r[2],
             "avg_pick": r[3], "pick_std": r[4],
             "ownership_pct": r[5], "draft_count": r[6], "total_season_drafts": r[7],
+            "ending_adp": r[8],
         }
         for r in rows
     ]

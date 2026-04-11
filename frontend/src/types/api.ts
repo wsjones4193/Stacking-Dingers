@@ -337,6 +337,7 @@ export interface EpisodeListResponse {
 export interface AdpPlayerSummaryEntry {
   player_id: number;
   player_name: string;
+  ending_adp?: number | null;
   position: string;
   avg_pick: number;
   pick_std: number | null;

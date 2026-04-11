@@ -45,11 +45,11 @@ const POSITION_COLORS: Record<string, string> = {
 // Tab 1: ADP Leaderboard
 // ---------------------------------------------------------------------------
 
-type LBSortKey = "avg_pick" | "ownership_pct" | "pick_std" | "draft_count";
+type LBSortKey = "ending_adp" | "avg_pick" | "ownership_pct" | "pick_std" | "draft_count";
 type SortDir = "asc" | "desc";
 
 function LeaderboardTab({ season, position }: { season: number; position: string }) {
-  const [sortBy, setSortBy] = useState<LBSortKey>("avg_pick");
+  const [sortBy, setSortBy] = useState<LBSortKey>("ending_adp");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
@@ -65,7 +65,7 @@ function LeaderboardTab({ season, position }: { season: number; position: string
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     } else {
       setSortBy(col);
-      setSortDir(col === "avg_pick" ? "asc" : "desc");
+      setSortDir(col === "ending_adp" || col === "avg_pick" ? "asc" : "desc");
     }
     setPage(1);
   }
@@ -96,8 +96,8 @@ function LeaderboardTab({ season, position }: { season: number; position: string
     : data.data;
 
   const sorted = [...filtered].sort((a, b) => {
-    const va = (a[sortBy] ?? 9999) as number;
-    const vb = (b[sortBy] ?? 9999) as number;
+    const va = (sortBy === "ending_adp" ? (a.ending_adp ?? a.avg_pick) : (a[sortBy] ?? 9999)) as number;
+    const vb = (sortBy === "ending_adp" ? (b.ending_adp ?? b.avg_pick) : (b[sortBy] ?? 9999)) as number;
     return sortDir === "asc" ? va - vb : vb - va;
   });
 
@@ -115,8 +115,8 @@ function LeaderboardTab({ season, position }: { season: number; position: string
   return (
     <div className="space-y-4">
       <p className="text-xs text-muted-foreground">
-        Average draft position derived from {data.data[0]?.total_season_drafts?.toLocaleString() ?? "—"} drafts
-        in {season}. Ownership % = share of all drafts that selected this player.
+        ADP = most recent Underdog projection ADP. Avg Pick = season average across {data.data[0]?.total_season_drafts?.toLocaleString() ?? "—"} drafts.
+        Ownership % = share of all team slots that drafted this player.
       </p>
 
       {/* Search */}
@@ -138,7 +138,15 @@ function LeaderboardTab({ season, position }: { season: number; position: string
                 <th className="pb-2">Pos</th>
                 <th
                   className="pb-2 text-right cursor-pointer hover:text-foreground select-none"
+                  onClick={() => toggleSort("ending_adp")}
+                  title="Most recent projection ADP"
+                >
+                  ADP<SortIcon col="ending_adp" />
+                </th>
+                <th
+                  className="pb-2 text-right cursor-pointer hover:text-foreground select-none"
                   onClick={() => toggleSort("avg_pick")}
+                  title="Season average pick number"
                 >
                   Avg Pick<SortIcon col="avg_pick" />
                 </th>
@@ -178,7 +186,12 @@ function LeaderboardTab({ season, position }: { season: number; position: string
                         {p.position}
                       </span>
                     </td>
-                    <td className="py-1.5 text-right font-semibold">{p.avg_pick.toFixed(1)}</td>
+                    <td className="py-1.5 text-right font-semibold">
+                      {(p.ending_adp ?? p.avg_pick).toFixed(1)}
+                    </td>
+                    <td className="py-1.5 text-right text-muted-foreground">
+                      {p.avg_pick.toFixed(1)}
+                    </td>
                     <td className="py-1.5 text-right text-muted-foreground">
                       {p.pick_std != null ? `±${p.pick_std.toFixed(1)}` : "—"}
                     </td>
@@ -466,10 +479,12 @@ function AdpMovementTab({ season, position }: { season: number; position: string
     position === "All" ? undefined : position,
   );
 
-  // Players sorted by avg_pick ascending
+  // Players sorted by most recent ADP (ending_adp), falling back to avg_pick
   const sortedPlayers = useMemo(() => {
     if (!lbData) return [];
-    return [...lbData.data].sort((a, b) => a.avg_pick - b.avg_pick);
+    return [...lbData.data].sort(
+      (a, b) => (a.ending_adp ?? a.avg_pick) - (b.ending_adp ?? b.avg_pick)
+    );
   }, [lbData]);
 
   const filteredPlayers = useMemo(() => {
@@ -593,7 +608,7 @@ function AdpMovementTab({ season, position }: { season: number; position: string
                         </span>
                       </td>
                       <td className="px-2 py-1.5 truncate max-w-[100px]">{p.player_name}</td>
-                      <td className="px-2 py-1.5 text-right text-muted-foreground">{p.avg_pick.toFixed(1)}</td>
+                      <td className="px-2 py-1.5 text-right text-muted-foreground">{(p.ending_adp ?? p.avg_pick).toFixed(1)}</td>
                     </tr>
                   );
                 })}
