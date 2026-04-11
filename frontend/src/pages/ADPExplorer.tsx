@@ -352,6 +352,7 @@ function LineEndLabel({
 function AdpMovementTab({ season, position }: { season: number; position: string }) {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [search, setSearch] = useState("");
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
 
   const { data: lbData } = useAdpLeaderboard(season, position === "All" ? undefined : position);
 
@@ -450,9 +451,9 @@ function AdpMovementTab({ season, position }: { season: number; position: string
         {isDefaultView && " Showing top 10 players by ADP. Click rows to customize."}
       </p>
 
-      <div className="flex gap-4" style={{ height: 516 }}>
+      <div className="flex flex-col gap-4 sm:flex-row sm:gap-4" style={{ minHeight: 0 }}>
         {/* Left: scrollable player table */}
-        <div className="w-56 shrink-0 flex flex-col gap-2 h-full">
+        <div className="w-full sm:w-56 sm:shrink-0 flex flex-col gap-2 sm:h-[516px]">
           <input
             type="text"
             placeholder="Search players…"
@@ -460,7 +461,7 @@ function AdpMovementTab({ season, position }: { season: number; position: string
             onChange={(e) => setSearch(e.target.value)}
             className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary shrink-0"
           />
-          <div className="flex-1 overflow-y-auto rounded-md border border-border" style={{ backgroundColor: "hsl(32, 40%, 98%)" }}>
+          <div className="h-48 sm:flex-1 overflow-y-auto rounded-md border border-border" style={{ backgroundColor: "hsl(32, 40%, 98%)" }}>
             <table className="w-full text-xs">
               <thead className="sticky top-0 z-10" style={{ backgroundColor: "hsl(32, 40%, 98%)" }}>
                 <tr className="border-b border-border text-left text-muted-foreground">
@@ -511,7 +512,7 @@ function AdpMovementTab({ season, position }: { season: number; position: string
         </div>
 
         {/* Right: chart */}
-        <div className="flex-1 min-w-0 h-full">
+        <div className="flex-1 min-w-0 h-[360px] sm:h-[516px]">
           {loading && <LoadingSpinner />}
           {error && <p className="py-8 text-center text-sm text-destructive">{error}</p>}
           {!loading && chartData.length > 0 && (
@@ -521,7 +522,7 @@ function AdpMovementTab({ season, position }: { season: number; position: string
               </CardHeader>
               <CardContent className="flex-1 min-h-0">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData} margin={{ top: 4, right: 130, bottom: 24, left: 8 }}>
+                  <LineChart data={chartData} margin={{ top: 4, right: isMobile ? 70 : 130, bottom: 24, left: 8 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
                     <XAxis
                       dataKey="snapshot_date"
