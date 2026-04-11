@@ -5,7 +5,7 @@
  *   3. Round Composition — stacked bar: what positions went in each round
  *   4. ADP vs Draft % — ownership % vs avg pick scatter by position
  */
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -435,15 +435,17 @@ function AdpVsDraftRateTab({ season, position }: { season: number; position: str
 // Tab 5: ADP Movement — daily ADP time series per player
 // ---------------------------------------------------------------------------
 
+// Distinct stroke styles so same-position players are still distinguishable
+const STROKE_DASHES = ["", "6 3", "2 2", "8 2 2 2"];
+
 function AdpMovementTab({ season, position }: { season: number; position: string }) {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [showSuggestions, setShowSuggestions] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Leaderboard: used for player search + resolving names
   const { data: lbData } = useAdpLeaderboard(season, position === "All" ? undefined : position);
 
-  // Timeseries: if no selection → endpoint returns top 10 by ADP
   const playerIdsParam = selectedIds.length > 0 ? selectedIds.join(",") : undefined;
   const { data: tsData, loading, error } = useAdpTimeseries(
     season,
@@ -451,47 +453,59 @@ function AdpMovementTab({ season, position }: { season: number; position: string
     position === "All" ? undefined : position,
   );
 
-  // Search suggestions: players in leaderboard not yet selected
-  const suggestions = useMemo(() => {
-    if (!lbData || !search.trim()) return [];
-    return lbData.data
-      .filter(
-        (p) =>
-          !selectedIds.includes(p.player_id) &&
-          p.player_name.toLowerCase().includes(search.toLowerCase()),
-      )
-      .slice(0, 8);
-  }, [lbData, search, selectedIds]);
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+        setSearch("");
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
 
-  // Player name lookup from leaderboard
-  const nameMap = useMemo(() => {
-    const m: Record<number, { name: string; position: string }> = {};
-    lbData?.data.forEach((p) => { m[p.player_id] = { name: p.player_name, position: p.position }; });
+  // Players sorted by avg_pick ascending (best ADP first = ending ADP proxy)
+  const sortedPlayers = useMemo(() => {
+    if (!lbData) return [];
+    return [...lbData.data].sort((a, b) => a.avg_pick - b.avg_pick);
+  }, [lbData]);
+
+  const filteredPlayers = useMemo(() => {
+    if (!search.trim()) return sortedPlayers;
+    return sortedPlayers.filter((p) =>
+      p.player_name.toLowerCase().includes(search.toLowerCase())
+    );
+  }, [sortedPlayers, search]);
+
+  const playerMap = useMemo(() => {
+    const m: Record<number, AdpPlayerSummaryEntry> = {};
+    lbData?.data.forEach((p) => { m[p.player_id] = p; });
     return m;
   }, [lbData]);
 
-  function addPlayer(id: number) {
-    if (selectedIds.length >= 12) return;
-    setSelectedIds((prev) => [...prev, id]);
-    setSearch("");
-    setShowSuggestions(false);
+  function togglePlayer(id: number) {
+    setSelectedIds((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      if (prev.length >= 12) return prev;
+      return [...prev, id];
+    });
   }
 
   const removePlayer = useCallback((id: number) => {
     setSelectedIds((prev) => prev.filter((x) => x !== id));
   }, []);
 
-  // Pivot timeseries: [{snapshot_date, [playerName]: adp, ...}]
+  // Pivot timeseries rows into [{snapshot_date, "Name__id": adp, ...}]
   const { chartData, playerKeys } = useMemo(() => {
     if (!tsData?.data.length) return { chartData: [], playerKeys: [] };
 
     const rows = tsData.data;
-    const dateMap: Record<string, Record<string, number>> = {};
+    const dateMap: Record<string, Record<string, number | string>> = {};
     const keys = new Set<string>();
 
     for (const row of rows) {
-      if (!dateMap[row.snapshot_date]) dateMap[row.snapshot_date] = { snapshot_date: row.snapshot_date as unknown as number };
-      // Use short name for key to avoid duplicate issues
+      if (!dateMap[row.snapshot_date]) dateMap[row.snapshot_date] = { snapshot_date: row.snapshot_date };
       const key = `${row.player_name}__${row.player_id}`;
       dateMap[row.snapshot_date][key] = row.adp;
       keys.add(key);
@@ -501,17 +515,17 @@ function AdpMovementTab({ season, position }: { season: number; position: string
       String(a.snapshot_date).localeCompare(String(b.snapshot_date))
     );
 
-    // Sort player keys by their earliest ADP (ascending = earlier pick = higher priority)
+    // Sort keys by ending ADP (last date's value), ascending
+    const lastDate = sorted[sorted.length - 1];
     const sortedKeys = Array.from(keys).sort((a, b) => {
-      const aMin = Math.min(...rows.filter((r) => `${r.player_name}__${r.player_id}` === a).map((r) => r.adp));
-      const bMin = Math.min(...rows.filter((r) => `${r.player_name}__${r.player_id}` === b).map((r) => r.adp));
-      return aMin - bMin;
+      const aAdp = lastDate ? (lastDate[a] as number ?? 999) : 999;
+      const bAdp = lastDate ? (lastDate[b] as number ?? 999) : 999;
+      return aAdp - bAdp;
     });
 
     return { chartData: sorted, playerKeys: sortedKeys };
   }, [tsData]);
 
-  // Resolve position color from timeseries data
   const keyPositionMap = useMemo(() => {
     const m: Record<string, string> = {};
     tsData?.data.forEach((row) => {
@@ -520,12 +534,23 @@ function AdpMovementTab({ season, position }: { season: number; position: string
     return m;
   }, [tsData]);
 
-  // Label tick formatter: shorten date to MM/DD
+  // Track dash index per position group so same-position players get different dashes
+  const keyDashMap = useMemo(() => {
+    const posCount: Record<string, number> = {};
+    const m: Record<string, string> = {};
+    for (const key of playerKeys) {
+      const pos = keyPositionMap[key] ?? "?";
+      const idx = posCount[pos] ?? 0;
+      m[key] = STROKE_DASHES[idx % STROKE_DASHES.length];
+      posCount[pos] = idx + 1;
+    }
+    return m;
+  }, [playerKeys, keyPositionMap]);
+
   function fmtDate(d: string) {
     if (!d || typeof d !== "string") return "";
     const parts = d.split("-");
-    if (parts.length < 3) return d;
-    return `${parts[1]}/${parts[2]}`;
+    return parts.length < 3 ? d : `${parts[1]}/${parts[2]}`;
   }
 
   const isDefaultView = selectedIds.length === 0;
@@ -534,68 +559,89 @@ function AdpMovementTab({ season, position }: { season: number; position: string
     <div className="space-y-4">
       <p className="text-xs text-muted-foreground">
         Daily ADP movement using Underdog's projection ADP — forward-filled on days with no drafts.
-        {isDefaultView && " Showing top 10 players by earliest ADP."}
+        {isDefaultView && " Showing top 10 players by ADP."}
       </p>
 
       {/* Player selector */}
       <div className="flex flex-wrap items-center gap-2">
-        {/* Selected player pills */}
+        {/* Selected pills */}
         {selectedIds.map((id) => {
-          const info = nameMap[id];
+          const info = playerMap[id];
           if (!info) return null;
           return (
             <span
               key={id}
-              className="flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
+              className="flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold"
               style={{
-                backgroundColor: `${POSITION_COLORS[info.position]}30`,
-                color: POSITION_COLORS[info.position],
-                border: `1px solid ${POSITION_COLORS[info.position]}60`,
+                backgroundColor: POSITION_COLORS[info.position],
+                color: "#fff",
               }}
             >
-              {info.name}
-              <button onClick={() => removePlayer(id)} className="ml-0.5 opacity-70 hover:opacity-100">
+              {info.player_name}
+              <button onClick={() => removePlayer(id)} className="ml-0.5 opacity-80 hover:opacity-100">
                 <X className="h-3 w-3" />
               </button>
             </span>
           );
         })}
 
-        {/* Search input */}
-        <div className="relative">
-          <input
-            type="text"
-            placeholder="Add player…"
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setShowSuggestions(true); }}
-            onFocus={() => setShowSuggestions(true)}
-            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-            className="rounded-md border border-border bg-background px-3 py-1 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary w-44"
-          />
-          {showSuggestions && suggestions.length > 0 && (
-            <div className="absolute z-10 mt-1 w-56 rounded-md border border-border bg-popover shadow-md">
-              {suggestions.map((p) => (
-                <button
-                  key={p.player_id}
-                  onMouseDown={() => addPlayer(p.player_id)}
-                  className="flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent/40 text-left"
-                >
-                  <span
-                    className="rounded px-1 py-0.5 text-xs font-medium"
-                    style={{ color: POSITION_COLORS[p.position], backgroundColor: `${POSITION_COLORS[p.position]}20` }}
-                  >
-                    {p.position}
-                  </span>
-                  {p.player_name}
-                </button>
-              ))}
+        {/* Dropdown trigger */}
+        <div className="relative" ref={dropdownRef}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => { setDropdownOpen((o) => !o); setSearch(""); }}
+            className="text-xs"
+          >
+            {selectedIds.length === 0 ? "Select players…" : "Add / remove players"}
+          </Button>
+
+          {dropdownOpen && (
+            <div className="absolute z-20 mt-1 w-64 rounded-md border border-border bg-popover shadow-lg flex flex-col max-h-80">
+              {/* Search inside dropdown */}
+              <div className="p-2 border-b border-border">
+                <input
+                  autoFocus
+                  type="text"
+                  placeholder="Search…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full rounded border border-border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+              <div className="overflow-y-auto">
+                {filteredPlayers.map((p) => {
+                  const selected = selectedIds.includes(p.player_id);
+                  return (
+                    <button
+                      key={p.player_id}
+                      onClick={() => togglePlayer(p.player_id)}
+                      className={`flex w-full items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-accent/40 ${selected ? "bg-accent/20" : ""}`}
+                    >
+                      {/* Checkmark column */}
+                      <span className="w-3 shrink-0 text-primary">{selected ? "✓" : ""}</span>
+                      <span
+                        className="shrink-0 rounded px-1 py-0.5 font-medium"
+                        style={{ color: POSITION_COLORS[p.position], backgroundColor: `${POSITION_COLORS[p.position]}20` }}
+                      >
+                        {p.position}
+                      </span>
+                      <span className="truncate">{p.player_name}</span>
+                      <span className="ml-auto shrink-0 text-muted-foreground">{p.avg_pick.toFixed(0)}</span>
+                    </button>
+                  );
+                })}
+                {filteredPlayers.length === 0 && (
+                  <p className="px-3 py-4 text-xs text-muted-foreground text-center">No players found.</p>
+                )}
+              </div>
             </div>
           )}
         </div>
 
         {selectedIds.length > 0 && (
-          <Button variant="ghost" size="sm" onClick={() => setSelectedIds([])}>
-            Reset to top 10
+          <Button variant="ghost" size="sm" className="text-xs" onClick={() => setSelectedIds([])}>
+            Reset
           </Button>
         )}
       </div>
@@ -609,29 +655,25 @@ function AdpMovementTab({ season, position }: { season: number; position: string
             <CardTitle>ADP Movement — {season}</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={400}>
-              <LineChart data={chartData} margin={{ top: 4, right: 16, bottom: 20, left: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+            <ResponsiveContainer width="100%" height={420}>
+              <LineChart data={chartData} margin={{ top: 4, right: 16, bottom: 24, left: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
                 <XAxis
                   dataKey="snapshot_date"
                   tickFormatter={fmtDate}
                   tick={{ fontSize: 10 }}
                   interval="preserveStartEnd"
-                  label={{ value: "Date", position: "insideBottom", offset: -10, fontSize: 11 }}
+                  label={{ value: "Date", position: "insideBottom", offset: -12, fontSize: 11 }}
                 />
                 <YAxis
-                  domain={[240, 1]}
                   reversed
                   tick={{ fontSize: 11 }}
                   tickCount={10}
-                  label={{ value: "ADP (lower = earlier pick)", angle: -90, position: "insideLeft", offset: 12, fontSize: 10 }}
+                  label={{ value: "ADP", angle: -90, position: "insideLeft", offset: 14, fontSize: 11 }}
                 />
                 <Tooltip
                   labelFormatter={(l) => String(l)}
-                  formatter={(v: number, name: string) => {
-                    const displayName = name.split("__")[0];
-                    return [`ADP ${v.toFixed(1)}`, displayName];
-                  }}
+                  formatter={(v: number, name: string) => [`ADP ${v.toFixed(1)}`, name.split("__")[0]]}
                   itemSorter={(item) => Number(item.value)}
                 />
                 <Legend
@@ -645,8 +687,10 @@ function AdpMovementTab({ season, position }: { season: number; position: string
                     dataKey={key}
                     name={key}
                     stroke={POSITION_COLORS[keyPositionMap[key]] ?? "#94a3b8"}
+                    strokeDasharray={keyDashMap[key]}
+                    strokeOpacity={1}
                     dot={false}
-                    strokeWidth={2}
+                    strokeWidth={2.5}
                     connectNulls
                   />
                 ))}
