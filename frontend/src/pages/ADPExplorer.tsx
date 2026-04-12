@@ -4,7 +4,7 @@
  *   2. ADP Movement — daily line chart of projection ADP per player
  *   3. ADP vs Draft % — ownership % vs avg pick scatter by position
  */
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -272,9 +272,8 @@ function LeaderboardTab({ season, position }: { season: number; position: string
                 const expanded = expandedId === p.player_id;
                 const color = POSITION_COLORS[p.position] ?? "#94a3b8";
                 return (
-                  <>
+                  <React.Fragment key={p.player_id}>
                     <tr
-                      key={p.player_id}
                       onClick={() => setExpandedId(expanded ? null : p.player_id)}
                       className={`cursor-pointer border-b border-border/50 transition-colors ${expanded ? "bg-accent/30" : "hover:bg-accent/20"}`}
                     >
@@ -299,7 +298,7 @@ function LeaderboardTab({ season, position }: { season: number; position: string
                       </td>
                     </tr>
                     {expanded && (
-                      <tr key={`${p.player_id}-expand`} className="bg-accent/10">
+                      <tr className="bg-accent/10">
                         <td colSpan={8} className="px-4 pb-3 pt-1">
                           <p className="text-xs font-medium mb-1" style={{ color }}>
                             {p.player_name} — ADP Trend ({season})
@@ -308,7 +307,7 @@ function LeaderboardTab({ season, position }: { season: number; position: string
                         </td>
                       </tr>
                     )}
-                  </>
+                  </React.Fragment>
                 );
               })}
             </tbody>
