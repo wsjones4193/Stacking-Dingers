@@ -18,7 +18,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { ArrowLeft, BarChart2, BookOpen, Layers, PieChart, Star, TrendingUp, Users } from "lucide-react";
+import { ArrowLeft, BarChart2, Layers, PieChart, Star, TrendingUp, Users } from "lucide-react";
 import {
   useAdpAccuracyData,
   useCeilingData,
@@ -86,12 +86,6 @@ const MODULES = [
     title: "Round Composition",
     icon: BarChart2,
     description: "Position breakdown per round — when pitchers, infielders, and outfielders come off the board.",
-  },
-  {
-    id: "player-history",
-    title: "Player Profiles",
-    icon: BookOpen,
-    description: "Historical season-by-season performance. Search from the sidebar.",
   },
 ];
 
@@ -781,21 +775,7 @@ function ModuleView({ moduleId, season }: { moduleId: string; season: number }) 
           <p className="text-sm text-muted-foreground">{meta.description}</p>
         </div>
       )}
-      {moduleId === "player-history" ? (
-        <Card>
-          <CardContent className="py-8">
-            <p className="text-sm text-muted-foreground mb-4">
-              Player historical profiles live on each player's page. Use the sidebar search to look up a player, then open the <strong>Historical</strong> tab.
-            </p>
-            <Link
-              to="/players"
-              className="text-sm text-primary underline hover:no-underline"
-            >
-              Search for a player →
-            </Link>
-          </CardContent>
-        </Card>
-      ) : Component ? (
+      {Component ? (
         <Component season={season} />
       ) : (
         <Card>
