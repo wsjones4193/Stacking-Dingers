@@ -1,6 +1,6 @@
 /**
  * ADP Explorer — three tabs built from pre-computed historical draft data:
- *   1. ADP Leaderboard — sortable table: who went where, ownership %, consistency
+ *   1. ADP Summary — sortable table: who went where, ownership %, consistency
  *   2. ADP Movement — daily line chart of projection ADP per player
  *   3. ADP vs Draft % — ownership % vs avg pick scatter by position
  */
@@ -42,7 +42,7 @@ const POSITION_COLORS: Record<string, string> = {
 };
 
 // ---------------------------------------------------------------------------
-// Tab 1: ADP Leaderboard
+// Tab 1: ADP Summary
 // ---------------------------------------------------------------------------
 
 type LBSortKey = "avg_projection_adp" | "ending_adp" | "avg_pick" | "ownership_pct" | "draft_count";
@@ -750,7 +750,7 @@ export default function ADPExplorer() {
 
       <Tabs defaultValue="leaderboard">
         <TabsList>
-          <TabsTrigger value="leaderboard">ADP Leaderboard</TabsTrigger>
+          <TabsTrigger value="leaderboard">ADP Summary</TabsTrigger>
           <TabsTrigger value="adp-movement">ADP Movement</TabsTrigger>
           <TabsTrigger value="adp-draft-rate">ADP vs Draft %</TabsTrigger>
         </TabsList>
