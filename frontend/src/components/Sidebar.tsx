@@ -22,9 +22,9 @@ const CONTENT_ITEMS = [
 ];
 
 const DATA_ITEMS = [
-  { to: "/players", icon: LayoutDashboard, label: "Player Hub" }, // label unchanged per spec
-  { to: "/teams", icon: Users, label: "Team Analyzer" },
   { to: "/adp", icon: TrendingUp, label: "ADP Explorer" },
+  { to: "/players", icon: LayoutDashboard, label: "Player Hub" },
+  { to: "/teams", icon: Users, label: "Team Analyzer" },
   { to: "/history", icon: BookOpen, label: "History Browser" },
 ];
 
