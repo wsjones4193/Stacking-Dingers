@@ -258,12 +258,6 @@ function LeaderboardTab({ season, position }: { season: number; position: string
                 >
                   Own %<SortIcon col="ownership_pct" />
                 </th>
-                <th
-                  className="pb-2 text-right cursor-pointer hover:text-foreground select-none"
-                  onClick={() => toggleSort("draft_count")}
-                >
-                  Drafted<SortIcon col="draft_count" />
-                </th>
               </tr>
             </thead>
             <tbody>
@@ -293,13 +287,10 @@ function LeaderboardTab({ season, position }: { season: number; position: string
                           : "—"}
                       </td>
                       <td className="py-1.5 text-right">{p.ownership_pct.toFixed(1)}%</td>
-                      <td className="py-1.5 text-right text-muted-foreground">
-                        {p.draft_count.toLocaleString()}
-                      </td>
                     </tr>
                     {expanded && (
                       <tr className="bg-accent/10">
-                        <td colSpan={8} className="px-4 pb-3 pt-1">
+                        <td colSpan={7} className="px-4 pb-3 pt-1">
                           <p className="text-xs font-medium mb-1" style={{ color }}>
                             {p.player_name} — ADP Trend ({season})
                           </p>
