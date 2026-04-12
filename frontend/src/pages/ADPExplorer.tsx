@@ -363,7 +363,7 @@ function AdpVsDraftRateTab({ season, position }: { season: number; position: str
   return (
     <div className="space-y-4">
       <p className="text-xs text-muted-foreground">
-        Each dot is a player: X = average projection ADP (across all drafts), Y = ownership % across all {season} rosters.
+        Each dot is a player: X = average ADP (across all drafts), Y = ownership % across all {season} rosters.
         Earlier-drafted players cluster top-left; deeper picks spread bottom-right.
       </p>
       <Card>
@@ -546,7 +546,7 @@ function AdpMovementTab({ season, position }: { season: number; position: string
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
-        Daily ADP movement using Underdog's projection ADP — forward-filled on days with no drafts.
+        Daily ADP movement — forward-filled on days with no drafts.
         {isDefaultView && " Showing top 10 players by ADP. Click rows to customize."}
       </p>
 
