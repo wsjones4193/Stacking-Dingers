@@ -155,7 +155,7 @@ function PlayerTrendChart({ playerId, season, color }: { playerId: number; seaso
 }
 
 function LeaderboardTab({ season, position }: { season: number; position: string }) {
-  const [sortBy, setSortBy] = useState<LBSortKey>("avg_projection_adp");
+  const [sortBy, setSortBy] = useState<LBSortKey>("ending_adp");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
@@ -225,11 +225,6 @@ function LeaderboardTab({ season, position }: { season: number; position: string
 
   return (
     <div className="space-y-4">
-      <p className="text-xs text-muted-foreground">
-        ADP = most recent Underdog projection ADP. Avg Pick = season average across {data.data[0]?.total_season_drafts?.toLocaleString() ?? "—"} drafts.
-        Ownership % = share of all team slots that drafted this player.
-      </p>
-
       {/* Search */}
       <input
         type="text"
@@ -249,17 +244,10 @@ function LeaderboardTab({ season, position }: { season: number; position: string
                 <th className="pb-2">Pos</th>
                 <th
                   className="pb-2 text-right cursor-pointer hover:text-foreground select-none"
-                  onClick={() => toggleSort("avg_projection_adp")}
-                  title="Average projection ADP across all drafts"
-                >
-                  ADP<SortIcon col="avg_projection_adp" />
-                </th>
-                <th
-                  className="pb-2 text-right cursor-pointer hover:text-foreground select-none"
                   onClick={() => toggleSort("ending_adp")}
                   title="Most recent projection ADP"
                 >
-                  Current<SortIcon col="ending_adp" />
+                  ADP<SortIcon col="ending_adp" />
                 </th>
                 <th className="pb-2 text-right text-muted-foreground" title="Min – Max projection ADP">
                   Range
@@ -298,9 +286,6 @@ function LeaderboardTab({ season, position }: { season: number; position: string
                         </span>
                       </td>
                       <td className="py-1.5 text-right font-semibold">
-                        {(p.avg_projection_adp ?? p.ending_adp ?? p.avg_pick).toFixed(1)}
-                      </td>
-                      <td className="py-1.5 text-right text-muted-foreground">
                         {p.ending_adp?.toFixed(1) ?? "—"}
                       </td>
                       <td className="py-1.5 text-right text-muted-foreground text-xs">
