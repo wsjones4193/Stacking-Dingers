@@ -91,6 +91,7 @@ def main() -> None:
         """
         SELECT
             pk.draft_id,
+            pk.username,
             pk.pick_number,
             pk.round_number,
             pk.player_id,
@@ -113,9 +114,10 @@ def main() -> None:
     picks_df["projection_adp"] = pd.to_numeric(picks_df["projection_adp"], errors="coerce").fillna(240.0)
     has_proj_adp = True  # always True after fill
 
-    # Total drafts per season (needed for ownership %)
-    season_draft_counts = (
-        picks_df.groupby("season")["draft_id"].nunique().rename("total_season_drafts")
+    # Total unique rosters per season (draft_id × username = one roster)
+    picks_df["roster_key"] = picks_df["draft_id"] + "|" + picks_df["username"]
+    season_roster_counts = (
+        picks_df.groupby("season")["roster_key"].nunique().rename("total_season_drafts")
     )
 
     # ------------------------------------------------------------------
@@ -127,14 +129,14 @@ def main() -> None:
         .agg(
             avg_pick=("pick_number", "mean"),
             pick_std=("pick_number", "std"),
-            draft_count=("draft_id", "nunique"),
+            draft_count=("roster_key", "nunique"),   # unique rosters that drafted this player
         )
         .reset_index()
     )
-    player_summary = player_summary.merge(season_draft_counts, on="season")
-    # Ownership = % of all team entries (12 teams per draft) that selected this player
+    player_summary = player_summary.merge(season_roster_counts, on="season")
+    # Ownership = % of individual rosters that selected this player
     player_summary["ownership_pct"] = (
-        player_summary["draft_count"] * 12 / player_summary["total_season_drafts"] * 100
+        player_summary["draft_count"] / player_summary["total_season_drafts"] * 100
     ).round(2)
     player_summary["avg_pick"] = player_summary["avg_pick"].round(2)
     player_summary["pick_std"] = player_summary["pick_std"].round(2)
@@ -230,7 +232,7 @@ def main() -> None:
 
     for season in picks_df["season"].unique():
         season_picks = picks_df[picks_df["season"] == season]
-        total_drafts = int(season_draft_counts[season])
+        total_drafts = int(season_roster_counts[season])
 
         for position in ["P", "IF", "OF"]:
             pos_picks = season_picks[season_picks["position"] == position]["pick_number"]

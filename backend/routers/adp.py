@@ -246,7 +246,7 @@ def adp_leaderboard(
         SELECT
             s.player_id, s.player_name, s.position,
             s.avg_pick, s.pick_std, s.ownership_pct, s.draft_count, s.total_season_drafts,
-            t.adp AS ending_adp,
+            snap.adp AS ending_adp,
             s.avg_projection_adp, s.min_projection_adp, s.max_projection_adp
         FROM adp_player_summary s
         LEFT JOIN (
@@ -258,7 +258,7 @@ def adp_leaderboard(
               )
         ) t ON s.player_id = t.player_id
         WHERE s.season = ?{pos_filter}
-        ORDER BY COALESCE(s.avg_projection_adp, t.adp, s.avg_pick)
+        ORDER BY COALESCE(t.adp, s.avg_pick)
     """
     params: list = [season, season, season]
     if position:

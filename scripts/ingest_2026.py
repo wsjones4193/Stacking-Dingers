@@ -184,16 +184,22 @@ def ingest_picks(
     df = df.dropna(subset=["player_id"])
     df["player_id"] = df["player_id"].astype(int)
 
+    df["projection_adp_val"] = pd.to_numeric(df.get("projection_adp", None), errors="coerce")
+
     rows = [
-        (str(r.draft_id), int(r.pick_number), int(r.round_number), int(r.player_id), str(r.username))
-        for r in df[["draft_id", "pick_number", "round_number", "player_id", "username"]].itertuples(index=False)
+        (
+            str(r.draft_id), int(r.pick_number), int(r.round_number),
+            int(r.player_id), str(r.username),
+            float(r.projection_adp_val) if not pd.isna(r.projection_adp_val) else None,
+        )
+        for r in df[["draft_id", "pick_number", "round_number", "player_id", "username", "projection_adp_val"]].itertuples(index=False)
     ]
 
     chunk_size = 100_000
     total = 0
     for i in range(0, len(rows), chunk_size):
         cur.executemany(
-            "INSERT OR IGNORE INTO picks (draft_id, pick_number, round_number, player_id, username) VALUES (?,?,?,?,?)",
+            "INSERT OR IGNORE INTO picks (draft_id, pick_number, round_number, player_id, username, projection_adp) VALUES (?,?,?,?,?,?)",
             rows[i: i + chunk_size],
         )
         conn.commit()
