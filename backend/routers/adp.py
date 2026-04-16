@@ -246,7 +246,7 @@ def adp_leaderboard(
         SELECT
             s.player_id, s.player_name, s.position,
             s.avg_pick, s.pick_std, s.ownership_pct, s.draft_count, s.total_season_drafts,
-            snap.adp AS ending_adp,
+            t.adp AS ending_adp,
             s.avg_projection_adp, s.min_projection_adp, s.max_projection_adp
         FROM adp_player_summary s
         LEFT JOIN (
