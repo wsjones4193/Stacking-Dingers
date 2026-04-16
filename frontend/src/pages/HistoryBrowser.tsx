@@ -572,14 +572,14 @@ function PositionalScarcityModule({ season }: { season: number }) {
     maxByPos[pos] = last?.avg_per_draft ?? 0;
   }
 
-  const milestones: Record<string, { pick: number; count: number }[]> = {};
+  const milestones: Record<string, { pick: number; round: number; count: number }[]> = {};
   for (const pos of positions) {
     const posRows = data.data.filter((d) => d.position === pos);
     const max = Math.floor(maxByPos[pos]);
     milestones[pos] = [];
-    for (let n = 1; n <= Math.min(max, 5); n++) {
+    for (let n = 1; n <= Math.min(max, 6); n++) {
       const row = posRows.find((d) => d.avg_per_draft >= n);
-      if (row) milestones[pos].push({ pick: row.pick_number, count: n });
+      if (row) milestones[pos].push({ pick: row.pick_number, round: Math.ceil(row.pick_number / 12), count: n });
     }
   }
 
@@ -599,10 +599,10 @@ function PositionalScarcityModule({ season }: { season: number }) {
               </CardTitle>
             </CardHeader>
             <CardContent className="px-4 pb-3 text-xs space-y-1">
-              {milestones[pos].map(({ pick, count }) => (
-                <div key={count} className="flex justify-between">
-                  <span className="text-muted-foreground">{count}st drafted by pick</span>
-                  <span className="font-semibold">{pick}</span>
+              {milestones[pos].map(({ pick, round, count }) => (
+                <div key={count} className="flex justify-between gap-2">
+                  <span className="text-muted-foreground">#{count} drafted by</span>
+                  <span className="font-semibold">Rd {round} / Pk {pick}</span>
                 </div>
               ))}
             </CardContent>

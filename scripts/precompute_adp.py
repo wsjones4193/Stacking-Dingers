@@ -234,9 +234,12 @@ def main() -> None:
     print("Computing scarcity curves ...")
     scarcity_rows = []
 
+    TEAMS_PER_DRAFT = 12
+
     for season in picks_df["season"].unique():
         season_picks = picks_df[picks_df["season"] == season]
-        total_drafts = int(season_draft_counts[season])
+        # avg_per_draft = avg per ROSTER (not per room) — multiply rooms by 12
+        total_rosters = int(season_draft_counts[season]) * TEAMS_PER_DRAFT
 
         for position in ["P", "IF", "OF"]:
             pos_picks = season_picks[season_picks["position"] == position]["pick_number"]
@@ -252,7 +255,7 @@ def main() -> None:
                         "position": position,
                         "pick_number": pick_num,
                         "cumulative_pct": round(cumulative / total * 100, 2),
-                        "avg_per_draft": round(cumulative / total_drafts, 3),
+                        "avg_per_draft": round(cumulative / total_rosters, 3),
                     }
                 )
 
