@@ -3,7 +3,7 @@ import Layout from "@/components/Layout";
 import Home from "@/pages/Home";
 import PlayerHub from "@/pages/PlayerHub";
 import TeamAnalyzer from "@/pages/TeamAnalyzer";
-import ADPExplorer from "@/pages/AdpExplorer";
+import ADPExplorer from "@/pages/ADPExplorer";
 import HistoryBrowser from "@/pages/HistoryBrowser";
 import Leaderboard from "@/pages/Leaderboard";
 import Admin from "@/pages/Admin";
