@@ -109,9 +109,21 @@ def main() -> None:
         conn,
     )
     print(f"  Loaded {len(picks_df):,} picks across {picks_df['season'].nunique()} seasons")
+    picks_df["projection_adp"] = pd.to_numeric(picks_df["projection_adp"], errors="coerce")
     null_proj = picks_df["projection_adp"].isna().sum()
-    print(f"  projection_adp null before fill: {null_proj:,} picks — filling with 240")
-    picks_df["projection_adp"] = pd.to_numeric(picks_df["projection_adp"], errors="coerce").fillna(240.0)
+    print(f"  projection_adp null before fill: {null_proj:,} picks — filling with 240 for timeseries only")
+
+    # Compute min/max/avg from real values only (before filling nulls)
+    proj_adp_stats = (
+        picks_df.dropna(subset=["projection_adp"])
+        .groupby(["player_id", "season"])["projection_adp"]
+        .agg(avg_projection_adp="mean", min_projection_adp="min", max_projection_adp="max")
+        .round(2)
+        .reset_index()
+    )
+
+    # Fill nulls with 240 only for the timeseries calculation downstream
+    picks_df["projection_adp"] = picks_df["projection_adp"].fillna(240.0)
     has_proj_adp = True  # always True after fill
 
     # Total unique drafts per season
@@ -140,14 +152,6 @@ def main() -> None:
     player_summary["avg_pick"] = player_summary["avg_pick"].round(2)
     player_summary["pick_std"] = player_summary["pick_std"].round(2)
 
-    # avg/min/max projection_adp: stats from all picks (nulls filled with 240 above)
-    proj_adp_stats = (
-        picks_df
-        .groupby(["player_id", "season"])["projection_adp"]
-        .agg(avg_projection_adp="mean", min_projection_adp="min", max_projection_adp="max")
-        .round(2)
-        .reset_index()
-    )
     player_summary = player_summary.merge(proj_adp_stats, on=["player_id", "season"], how="left")
 
     # ------------------------------------------------------------------
