@@ -94,9 +94,8 @@ const MODULES = [
 // ---------------------------------------------------------------------------
 
 function TileCard({ id, title, icon: Icon, description }: { id: string; title: string; icon: React.ElementType; description: string }) {
-  const [season, setSeason] = useState(2025);
   return (
-    <Link to={`/history/${id}?season=${season}`}>
+    <Link to={`/history/${id}`}>
       <Card className="h-full transition-colors hover:border-primary/40 hover:bg-accent/30">
         <CardContent className="pt-5">
           <div className="mb-3 flex items-center gap-2">
@@ -104,18 +103,8 @@ function TileCard({ id, title, icon: Icon, description }: { id: string; title: s
             <h2 className="text-sm font-semibold">{title}</h2>
           </div>
           <p className="text-xs text-muted-foreground">{description}</p>
-          <div className="mt-3 flex items-center justify-between">
+          <div className="mt-3">
             <p className="text-xs text-primary">Explore →</p>
-            <div onClick={(e) => e.stopPropagation()}>
-              <Select value={String(season)} onValueChange={(v) => setSeason(Number(v))}>
-                <SelectTrigger className="h-6 w-20 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SEASONS.map((s) => <SelectItem key={s} value={String(s)}>{s}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
           </div>
         </CardContent>
       </Card>
@@ -767,8 +756,13 @@ const MODULE_COMPONENTS: Record<string, React.ComponentType<{ season: number }>>
 
 function ModuleView({ moduleId, season }: { moduleId: string; season: number }) {
   const navigate = useNavigate();
+  const [, setSearchParams] = useSearchParams();
   const meta = MODULES.find((m) => m.id === moduleId);
   const Component = MODULE_COMPONENTS[moduleId];
+
+  function setSeason(s: number) {
+    setSearchParams({ season: String(s) }, { replace: true });
+  }
 
   return (
     <div className="space-y-4">
@@ -779,9 +773,19 @@ function ModuleView({ moduleId, season }: { moduleId: string; season: number }) 
         <ArrowLeft className="h-4 w-4" /> History Browser
       </button>
       {meta && (
-        <div>
-          <h1 className="text-xl font-bold">{meta.title}</h1>
-          <p className="text-sm text-muted-foreground">{meta.description}</p>
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-xl font-bold">{meta.title}</h1>
+            <p className="text-sm text-muted-foreground">{meta.description}</p>
+          </div>
+          <Select value={String(season)} onValueChange={(v) => setSeason(Number(v))}>
+            <SelectTrigger className="w-24">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SEASONS.map((s) => <SelectItem key={s} value={String(s)}>{s}</SelectItem>)}
+            </SelectContent>
+          </Select>
         </div>
       )}
       {Component ? (
