@@ -93,40 +93,49 @@ const MODULES = [
 // Dashboard landing
 // ---------------------------------------------------------------------------
 
-function Dashboard({ season, setSeason }: { season: number; setSeason: (s: number) => void }) {
+function TileCard({ id, title, icon: Icon, description }: { id: string; title: string; icon: React.ElementType; description: string }) {
+  const [season, setSeason] = useState(2025);
+  return (
+    <Link to={`/history/${id}?season=${season}`}>
+      <Card className="h-full transition-colors hover:border-primary/40 hover:bg-accent/30">
+        <CardContent className="pt-5">
+          <div className="mb-3 flex items-center gap-2">
+            <Icon className="h-5 w-5 text-primary" />
+            <h2 className="text-sm font-semibold">{title}</h2>
+          </div>
+          <p className="text-xs text-muted-foreground">{description}</p>
+          <div className="mt-3 flex items-center justify-between">
+            <p className="text-xs text-primary">Explore →</p>
+            <div onClick={(e) => e.stopPropagation()}>
+              <Select value={String(season)} onValueChange={(v) => setSeason(Number(v))}>
+                <SelectTrigger className="h-6 w-20 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SEASONS.map((s) => <SelectItem key={s} value={String(s)}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
+  );
+}
+
+function Dashboard() {
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold">History Browser</h1>
-          <p className="text-sm text-muted-foreground">
-            Explore historical patterns across {"{"}2022–{season}{"}"} Dinger tournament data.
-          </p>
-        </div>
-        <Select value={String(season)} onValueChange={(v) => setSeason(Number(v))}>
-          <SelectTrigger className="w-24">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {SEASONS.map((s) => <SelectItem key={s} value={String(s)}>{s}</SelectItem>)}
-          </SelectContent>
-        </Select>
+      <div>
+        <h1 className="text-xl font-bold">History Browser</h1>
+        <p className="text-sm text-muted-foreground">
+          Explore historical patterns from Dinger tournament data.
+        </p>
       </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        {MODULES.map(({ id, title, icon: Icon, description }) => (
-          <Link key={id} to={`/history/${id}`}>
-            <Card className="h-full transition-colors hover:border-primary/40 hover:bg-accent/30">
-              <CardContent className="pt-5">
-                <div className="mb-3 flex items-center gap-2">
-                  <Icon className="h-5 w-5 text-primary" />
-                  <h2 className="text-sm font-semibold">{title}</h2>
-                </div>
-                <p className="text-xs text-muted-foreground">{description}</p>
-                <p className="mt-3 text-xs text-primary">Explore →</p>
-              </CardContent>
-            </Card>
-          </Link>
+        {MODULES.map((m) => (
+          <TileCard key={m.id} {...m} />
         ))}
       </div>
     </div>
@@ -794,23 +803,13 @@ function ModuleView({ moduleId, season }: { moduleId: string; season: number }) 
 
 export default function HistoryBrowser() {
   const { moduleId } = useParams<{ moduleId?: string }>();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
 
-  const seasonParam = searchParams.get("season");
-  const [season, _setSeason] = useState(seasonParam ? Number(seasonParam) : 2025);
-
-  function setSeason(s: number) {
-    _setSeason(s);
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
-      next.set("season", String(s));
-      return next;
-    }, { replace: true });
-  }
+  const season = Number(searchParams.get("season")) || 2025;
 
   return moduleId ? (
     <ModuleView moduleId={moduleId} season={season} />
   ) : (
-    <Dashboard season={season} setSeason={setSeason} />
+    <Dashboard />
   );
 }

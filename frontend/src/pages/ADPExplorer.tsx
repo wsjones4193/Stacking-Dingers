@@ -32,7 +32,7 @@ import DataAsOf from "@/components/DataAsOf";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import type { AdpPlayerSummaryEntry } from "@/types/api";
 
-const SEASONS = [2025, 2024, 2023];
+const SEASONS = [2026, 2025, 2024, 2023];
 const POSITIONS = ["All", "P", "IF", "OF"];
 
 const POSITION_COLORS: Record<string, string> = {
@@ -97,7 +97,7 @@ function PlayerTrendChart({ playerId, season, color }: { playerId: number; seaso
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
       {/* Projection ADP trend — 2/3 width on desktop */}
       <div className="sm:col-span-2" style={{ height: 190 }}>
-        <p className="text-[10px] text-muted-foreground mb-1">Projection ADP over time</p>
+        <p className="text-[10px] text-muted-foreground mb-1">ADP over time</p>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={linePoints} margin={{ top: 4, right: 16, bottom: 20, left: 8 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
@@ -123,7 +123,7 @@ function PlayerTrendChart({ playerId, season, color }: { playerId: number; seaso
               labelFormatter={(ts: number) => fmtTs(ts)}
               contentStyle={{ fontSize: 11 }}
             />
-            <Line dataKey="adp" type="monotone" stroke={color} strokeWidth={2} dot={false} name="Projection ADP" connectNulls isAnimationActive={false} />
+            <Line dataKey="adp" type="monotone" stroke={color} strokeWidth={2} dot={false} name="ADP" connectNulls isAnimationActive={false} />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -700,7 +700,7 @@ export default function ADPExplorer() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [season, _setSeason] = useState(
-    searchParams.get("season") ? Number(searchParams.get("season")) : 2025
+    searchParams.get("season") ? Number(searchParams.get("season")) : 2026
   );
   const [position, _setPosition] = useState(searchParams.get("position") ?? "All");
 
