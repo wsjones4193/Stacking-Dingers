@@ -109,26 +109,15 @@ def main() -> None:
         conn,
     )
     print(f"  Loaded {len(picks_df):,} picks across {picks_df['season'].nunique()} seasons")
-    picks_df["projection_adp"] = pd.to_numeric(picks_df["projection_adp"], errors="coerce")
     null_proj = picks_df["projection_adp"].isna().sum()
-    print(f"  projection_adp null before fill: {null_proj:,} picks — filling with 240 for timeseries only")
-
-    # Compute min/max/avg from real values only (before filling nulls)
-    proj_adp_stats = (
-        picks_df.dropna(subset=["projection_adp"])
-        .groupby(["player_id", "season"])["projection_adp"]
-        .agg(avg_projection_adp="mean", min_projection_adp="min", max_projection_adp="max")
-        .round(2)
-        .reset_index()
-    )
-
-    # Fill nulls with 240 only for the timeseries calculation downstream
-    picks_df["projection_adp"] = picks_df["projection_adp"].fillna(240.0)
+    print(f"  projection_adp null before fill: {null_proj:,} picks — filling with 240")
+    picks_df["projection_adp"] = pd.to_numeric(picks_df["projection_adp"], errors="coerce").fillna(240.0)
     has_proj_adp = True  # always True after fill
 
-    # Total unique drafts per season
-    season_draft_counts = (
-        picks_df.groupby("season")["draft_id"].nunique().rename("total_season_drafts")
+    # Total unique rosters per season (draft_id × username = one roster)
+    picks_df["roster_key"] = picks_df["draft_id"] + "|" + picks_df["username"]
+    season_roster_counts = (
+        picks_df.groupby("season")["roster_key"].nunique().rename("total_season_drafts")
     )
 
     # ------------------------------------------------------------------
@@ -140,18 +129,26 @@ def main() -> None:
         .agg(
             avg_pick=("pick_number", "mean"),
             pick_std=("pick_number", "std"),
-            draft_count=("draft_id", "nunique"),   # unique drafts containing this player
+            draft_count=("roster_key", "nunique"),   # unique rosters that drafted this player
         )
         .reset_index()
     )
-    player_summary = player_summary.merge(season_draft_counts, on="season")
-    # Ownership = % of drafts that included this player (max ~100% for consensus picks)
+    player_summary = player_summary.merge(season_roster_counts, on="season")
+    # Ownership = % of individual rosters that selected this player
     player_summary["ownership_pct"] = (
         player_summary["draft_count"] / player_summary["total_season_drafts"] * 100
     ).round(2)
     player_summary["avg_pick"] = player_summary["avg_pick"].round(2)
     player_summary["pick_std"] = player_summary["pick_std"].round(2)
 
+    # avg/min/max projection_adp: stats from all picks (nulls filled with 240 above)
+    proj_adp_stats = (
+        picks_df
+        .groupby(["player_id", "season"])["projection_adp"]
+        .agg(avg_projection_adp="mean", min_projection_adp="min", max_projection_adp="max")
+        .round(2)
+        .reset_index()
+    )
     player_summary = player_summary.merge(proj_adp_stats, on=["player_id", "season"], how="left")
 
     # ------------------------------------------------------------------
@@ -178,10 +175,9 @@ def main() -> None:
         proj_picks = picks_df.copy()
         proj_picks["draft_date"] = pd.to_datetime(proj_picks["draft_date"]).dt.date
 
-        # Daily avg projection_adp per player/season — exclude 240-filled nulls
+        # Daily avg projection_adp per player/season
         daily_adp = (
-            proj_picks[proj_picks["projection_adp"] != 240.0]
-            .groupby(["player_id", "player_name", "position", "season", "draft_date"])
+            proj_picks.groupby(["player_id", "player_name", "position", "season", "draft_date"])
             ["projection_adp"]
             .mean()
             .reset_index()
@@ -234,18 +230,9 @@ def main() -> None:
     print("Computing scarcity curves ...")
     scarcity_rows = []
 
-    # Roster counts: unique (draft_id, username) pairs per season.
-    # 2023-2025 use roster-level draft_ids (already unique per team).
-    # 2026 uses room-level draft_ids (shared by 12 teams), so username disambiguates.
-    roster_key_counts = (
-        picks_df.groupby("season")
-        .apply(lambda g: (g["draft_id"] + "|" + g["username"]).nunique())
-        .rename("total_rosters")
-    )
-
     for season in picks_df["season"].unique():
         season_picks = picks_df[picks_df["season"] == season]
-        total_rosters = int(roster_key_counts[season])
+        total_drafts = int(season_roster_counts[season])
 
         for position in ["P", "IF", "OF"]:
             pos_picks = season_picks[season_picks["position"] == position]["pick_number"]
@@ -261,7 +248,7 @@ def main() -> None:
                         "position": position,
                         "pick_number": pick_num,
                         "cumulative_pct": round(cumulative / total * 100, 2),
-                        "avg_per_draft": round(cumulative / total_rosters, 3),
+                        "avg_per_draft": round(cumulative / total_drafts, 3),
                     }
                 )
 

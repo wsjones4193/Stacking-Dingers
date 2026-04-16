@@ -94,8 +94,9 @@ const MODULES = [
 // ---------------------------------------------------------------------------
 
 function TileCard({ id, title, icon: Icon, description }: { id: string; title: string; icon: React.ElementType; description: string }) {
+  const [season, setSeason] = useState(2025);
   return (
-    <Link to={`/history/${id}`}>
+    <Link to={`/history/${id}?season=${season}`}>
       <Card className="h-full transition-colors hover:border-primary/40 hover:bg-accent/30">
         <CardContent className="pt-5">
           <div className="mb-3 flex items-center gap-2">
@@ -103,8 +104,18 @@ function TileCard({ id, title, icon: Icon, description }: { id: string; title: s
             <h2 className="text-sm font-semibold">{title}</h2>
           </div>
           <p className="text-xs text-muted-foreground">{description}</p>
-          <div className="mt-3">
+          <div className="mt-3 flex items-center justify-between">
             <p className="text-xs text-primary">Explore →</p>
+            <div onClick={(e) => e.stopPropagation()}>
+              <Select value={String(season)} onValueChange={(v) => setSeason(Number(v))}>
+                <SelectTrigger className="h-6 w-20 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SEASONS.map((s) => <SelectItem key={s} value={String(s)}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -572,14 +583,14 @@ function PositionalScarcityModule({ season }: { season: number }) {
     maxByPos[pos] = last?.avg_per_draft ?? 0;
   }
 
-  const milestones: Record<string, { pick: number; round: number; count: number }[]> = {};
+  const milestones: Record<string, { pick: number; count: number }[]> = {};
   for (const pos of positions) {
     const posRows = data.data.filter((d) => d.position === pos);
     const max = Math.floor(maxByPos[pos]);
     milestones[pos] = [];
-    for (let n = 1; n <= Math.min(max, 6); n++) {
+    for (let n = 1; n <= Math.min(max, 5); n++) {
       const row = posRows.find((d) => d.avg_per_draft >= n);
-      if (row) milestones[pos].push({ pick: row.pick_number, round: Math.ceil(row.pick_number / 12), count: n });
+      if (row) milestones[pos].push({ pick: row.pick_number, count: n });
     }
   }
 
@@ -599,10 +610,10 @@ function PositionalScarcityModule({ season }: { season: number }) {
               </CardTitle>
             </CardHeader>
             <CardContent className="px-4 pb-3 text-xs space-y-1">
-              {milestones[pos].map(({ pick, round, count }) => (
-                <div key={count} className="flex justify-between gap-2">
-                  <span className="text-muted-foreground">#{count} drafted by</span>
-                  <span className="font-semibold">Rd {round} / Pk {pick}</span>
+              {milestones[pos].map(({ pick, count }) => (
+                <div key={count} className="flex justify-between">
+                  <span className="text-muted-foreground">{count}st drafted by pick</span>
+                  <span className="font-semibold">{pick}</span>
                 </div>
               ))}
             </CardContent>
@@ -756,13 +767,8 @@ const MODULE_COMPONENTS: Record<string, React.ComponentType<{ season: number }>>
 
 function ModuleView({ moduleId, season }: { moduleId: string; season: number }) {
   const navigate = useNavigate();
-  const [, setSearchParams] = useSearchParams();
   const meta = MODULES.find((m) => m.id === moduleId);
   const Component = MODULE_COMPONENTS[moduleId];
-
-  function setSeason(s: number) {
-    setSearchParams({ season: String(s) }, { replace: true });
-  }
 
   return (
     <div className="space-y-4">
@@ -773,19 +779,9 @@ function ModuleView({ moduleId, season }: { moduleId: string; season: number }) 
         <ArrowLeft className="h-4 w-4" /> History Browser
       </button>
       {meta && (
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <h1 className="text-xl font-bold">{meta.title}</h1>
-            <p className="text-sm text-muted-foreground">{meta.description}</p>
-          </div>
-          <Select value={String(season)} onValueChange={(v) => setSeason(Number(v))}>
-            <SelectTrigger className="w-24">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {SEASONS.map((s) => <SelectItem key={s} value={String(s)}>{s}</SelectItem>)}
-            </SelectContent>
-          </Select>
+        <div>
+          <h1 className="text-xl font-bold">{meta.title}</h1>
+          <p className="text-sm text-muted-foreground">{meta.description}</p>
         </div>
       )}
       {Component ? (
