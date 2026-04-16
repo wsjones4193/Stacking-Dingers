@@ -178,9 +178,10 @@ def main() -> None:
         proj_picks = picks_df.copy()
         proj_picks["draft_date"] = pd.to_datetime(proj_picks["draft_date"]).dt.date
 
-        # Daily avg projection_adp per player/season
+        # Daily avg projection_adp per player/season — exclude 240-filled nulls
         daily_adp = (
-            proj_picks.groupby(["player_id", "player_name", "position", "season", "draft_date"])
+            proj_picks[proj_picks["projection_adp"] != 240.0]
+            .groupby(["player_id", "player_name", "position", "season", "draft_date"])
             ["projection_adp"]
             .mean()
             .reset_index()
