@@ -234,12 +234,18 @@ def main() -> None:
     print("Computing scarcity curves ...")
     scarcity_rows = []
 
-    TEAMS_PER_DRAFT = 12
+    # Roster counts: unique (draft_id, username) pairs per season.
+    # 2023-2025 use roster-level draft_ids (already unique per team).
+    # 2026 uses room-level draft_ids (shared by 12 teams), so username disambiguates.
+    roster_key_counts = (
+        picks_df.groupby("season")
+        .apply(lambda g: (g["draft_id"] + "|" + g["username"]).nunique())
+        .rename("total_rosters")
+    )
 
     for season in picks_df["season"].unique():
         season_picks = picks_df[picks_df["season"] == season]
-        # avg_per_draft = avg per ROSTER (not per room) — multiply rooms by 12
-        total_rosters = int(season_draft_counts[season]) * TEAMS_PER_DRAFT
+        total_rosters = int(roster_key_counts[season])
 
         for position in ["P", "IF", "OF"]:
             pos_picks = season_picks[season_picks["position"] == position]["pick_number"]
