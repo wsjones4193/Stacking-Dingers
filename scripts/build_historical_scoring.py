@@ -32,7 +32,6 @@ import pandas as pd
 import sqlite3
 
 from backend.services.lineup_setter import RosterPlayer, set_lineup
-from backend.db.parquet_helpers import load_gamelogs_date_range
 
 logging.basicConfig(
     level=logging.INFO,
@@ -205,8 +204,11 @@ def compute_weekly_scores(
     force: bool = False,
 ) -> dict:
     """
-    For each week, load game logs, score every draft, write to weekly_scores.
-    Skips drafts that already have scores for that week (unless --force).
+    For each week, join each draft's roster to player_weekly_scores, run the
+    lineup optimizer, and write results to weekly_scores.
+
+    Requires build_player_weekly_scores.py to have been run first (Stage 1).
+    Skips if scores already exist for this season (unless --force).
     """
     cur = conn.cursor()
 
@@ -223,74 +225,90 @@ def compute_weekly_scores(
         cur.execute("DELETE FROM weekly_scores WHERE season=?", (season,))
         conn.commit()
 
-    # Load all drafts + picks for the season into memory
-    logger.info(f"Loading drafts and picks for {season}...")
-    drafts = cur.execute(
+    # Verify Stage 1 has been run
+    pws_count = cur.execute(
+        "SELECT COUNT(*) FROM player_weekly_scores WHERE season=?", (season,)
+    ).fetchone()[0]
+    if pws_count == 0:
+        raise RuntimeError(
+            f"No player_weekly_scores found for season {season}. "
+            f"Run Stage 1 first: python scripts/build_player_weekly_scores.py --seasons {season}"
+        )
+    logger.info(f"Using {pws_count:,} player-weekly rows for {season} (Stage 1 data)")
+
+    # Ensure indexes exist
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_drafts_season ON drafts(season)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_picks_draft_id ON picks(draft_id)")
+    conn.commit()
+
+    # Load all drafts for the season
+    logger.info(f"Loading drafts for {season}...")
+    draft_ids = [r[0] for r in cur.execute(
         "SELECT draft_id FROM drafts WHERE season=?", (season,)
-    ).fetchall()
-    draft_ids = [r[0] for r in drafts]
+    ).fetchall()]
     logger.info(f"  {len(draft_ids):,} drafts")
 
-    # Load all picks: {draft_id: [(player_id, position), ...]}
-    logger.info("Loading picks...")
-    all_picks_rows = cur.execute(
-        """SELECT p.draft_id, p.player_id
-           FROM picks p
-           JOIN drafts d ON p.draft_id = d.draft_id
-           WHERE d.season = ?""",
-        (season,)
-    ).fetchall()
+    # Load picks from CSV (faster than SQLite join on 2M rows)
+    logger.info("Loading picks from CSV...")
+    csv_path = Path(f"data/csv/{season}.csv")
+    if not csv_path.exists():
+        raise FileNotFoundError(f"No CSV for season {season}: {csv_path}")
 
-    draft_picks: dict[str, list[int]] = {}
-    for draft_id, player_id in all_picks_rows:
-        draft_picks.setdefault(draft_id, []).append(player_id)
-    logger.info(f"  {len(all_picks_rows):,} picks across {len(draft_picks):,} drafts")
+    csv_df = pd.read_csv(csv_path, usecols=["draft_id", "underdog_player_id", "player_name"])
+
+    ud_to_pid_rows = cur.execute(
+        "SELECT p.underdog_id, p.player_id FROM players p WHERE p.underdog_id IS NOT NULL"
+    ).fetchall()
+    ud_to_pid: dict[str, int] = {r[0]: r[1] for r in ud_to_pid_rows}
+
+    # 2022 has no UUIDs — fall back to name-based lookup
+    if csv_df["underdog_player_id"].isna().all():
+        name_to_pid_rows = cur.execute("SELECT name, player_id FROM players").fetchall()
+        name_to_pid: dict[str, int] = {r[0]: r[1] for r in name_to_pid_rows}
+        csv_df["player_id"] = csv_df["player_name"].map(name_to_pid)
+    else:
+        csv_df["player_id"] = csv_df["underdog_player_id"].map(ud_to_pid)
+
+    csv_df = csv_df.dropna(subset=["player_id"])
+    csv_df["player_id"] = csv_df["player_id"].astype(int)
+    csv_df = csv_df[csv_df["draft_id"].isin(set(draft_ids))]
+
+    draft_picks: dict[str, list[int]] = (
+        csv_df.groupby("draft_id")["player_id"].apply(list).to_dict()
+    )
+    logger.info(f"  {len(csv_df):,} picks across {len(draft_picks):,} drafts")
+
+    # Load all player_weekly_scores for this season into a lookup dict
+    # Key: (mlb_id, week_number, stat_type) → calculated_points
+    logger.info("Loading player weekly scores from DB (Stage 1 data)...")
+    pws_df = pd.read_sql(
+        "SELECT mlb_id, week_number, stat_type, calculated_points "
+        "FROM player_weekly_scores WHERE season=?",
+        conn,
+        params=(season,),
+    )
+    pws_lookup: dict[tuple[int, int, str], float] = {
+        (int(r.mlb_id), int(r.week_number), str(r.stat_type)): float(r.calculated_points)
+        for r in pws_df.itertuples(index=False)
+    }
+    logger.info(f"  {len(pws_lookup):,} player-week-stattype entries loaded")
 
     total_rows = 0
     total_weeks_processed = 0
 
-    for week_number, (week_start, week_end, round_number) in sorted(week_map.items()):
+    for week_number, (week_start, week_end, _round_number) in sorted(week_map.items()):
         start_str = week_start.strftime("%Y-%m-%d")
         end_str = week_end.strftime("%Y-%m-%d")
 
-        # Load game logs for this week from parquet
-        gamelogs = load_gamelogs_date_range(season, start_str, end_str)
-        if gamelogs.empty:
-            logger.debug(f"  Week {week_number}: no game logs ({start_str}–{end_str})")
-            continue
-
-        # Build mlb_id → (position, week_total_points) for this week
-        # Sum across all games in the week per player
-        mlb_week_scores: dict[int, tuple[str, float]] = {}
-        for _, row in gamelogs.iterrows():
-            mlb_id = int(row["mlb_id"])
-            # Use position from game log (more accurate than player master)
-            pos = str(row.get("position", ""))
-            # Normalize position to P/IF/OF
-            if pos == "P":
-                norm_pos = "P"
-            elif pos in ("CF", "LF", "RF", "OF"):
-                norm_pos = "OF"
-            else:
-                norm_pos = "IF"  # 1B, 2B, 3B, SS, C, DH, etc.
-
-            pts = float(row.get("calculated_points", 0.0))
-            existing_pos, existing_pts = mlb_week_scores.get(mlb_id, (norm_pos, 0.0))
-            mlb_week_scores[mlb_id] = (existing_pos, existing_pts + pts)
-
-        # Build player_id → (position, week_score) via mlb lookup
+        # Build player_id → (position, week_score) for this week
+        # Uses Underdog position (P/IF/OF) as authoritative for lineup setting
+        # For two-way players (e.g. Ohtani): position drives stat_type selection
         player_week_scores: dict[int, tuple[str, float]] = {}
         for player_id, (mlb_id, ud_position) in player_mlb_lookup.items():
-            if mlb_id in mlb_week_scores:
-                _pos, score = mlb_week_scores[mlb_id]
-                # Use Underdog position for lineup setting (P/IF/OF)
-                if ud_position == "P":
-                    norm_pos = "P"
-                elif ud_position in ("OF",):
-                    norm_pos = "OF"
-                else:
-                    norm_pos = "IF"
-                player_week_scores[player_id] = (norm_pos, score)
+            stat_type = "pitching" if ud_position == "P" else "hitting"
+            score = pws_lookup.get((mlb_id, week_number, stat_type), 0.0)
+            norm_pos = "P" if ud_position == "P" else "OF" if ud_position == "OF" else "IF"
+            player_week_scores[player_id] = (norm_pos, score)
 
         # Score each draft for this week
         week_rows: list[tuple] = []
@@ -299,33 +317,16 @@ def compute_weekly_scores(
             if not picks_for_draft:
                 continue
 
-            # Build roster for lineup setter
             roster = []
             for pid in picks_for_draft:
                 if pid in player_week_scores:
                     pos, score = player_week_scores[pid]
-                    roster.append(RosterPlayer(
-                        player_id=pid,
-                        position=pos,
-                        weekly_score=score,
-                    ))
-                else:
-                    # Player had no game log this week — score 0
-                    # Still need their position for lineup setting
-                    if pid in player_mlb_lookup:
-                        _, ud_pos = player_mlb_lookup[pid]
-                        norm_pos = "P" if ud_pos == "P" else "OF" if ud_pos == "OF" else "IF"
-                        roster.append(RosterPlayer(
-                            player_id=pid,
-                            position=norm_pos,
-                            weekly_score=0.0,
-                        ))
+                    roster.append(RosterPlayer(player_id=pid, position=pos, weekly_score=score))
 
             if not roster:
                 continue
 
             result = set_lineup(roster)
-
             starter_ids = {p.player_id for p in result.starters}
             flex_id = result.flex.player_id if result.flex else None
 
@@ -378,7 +379,7 @@ def main():
                         help="Skip Excel→DB mapping update (use existing DB mappings)")
     args = parser.parse_args()
 
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = sqlite3.connect(str(DB_PATH), timeout=60)
 
     # Step 1: Load cleaned mapping from Excel
     if not args.skip_mapping_update:
