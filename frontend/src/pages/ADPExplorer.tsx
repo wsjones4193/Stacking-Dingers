@@ -271,10 +271,7 @@ function LeaderboardTab({ season, position }: { season: number; position: string
                       onClick={() => setExpandedId(expanded ? null : p.player_id)}
                       className={`cursor-pointer border-b border-border/50 transition-colors ${expanded ? "bg-accent/30" : "hover:bg-accent/20"}`}
                     >
-                      <td className="py-1.5 text-xs text-muted-foreground">
-                        {rank}
-                        <span className="ml-1 text-[9px] text-orange-400">[{sortVal(p).toFixed(1)}]</span>
-                      </td>
+                      <td className="py-1.5 text-xs text-muted-foreground">{rank}</td>
                       <td className="py-1.5 font-medium">{p.player_name}</td>
                       <td className="py-1.5">
                         <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${posBadge(p.position)}`}>
@@ -360,7 +357,8 @@ function AdpVsDraftRateTab({ season, position }: { season: number; position: str
   const byPos: Record<string, ScatterPoint[]> = {};
   for (const p of data.data) {
     if (!byPos[p.position]) byPos[p.position] = [];
-    byPos[p.position].push({ ...p, adp_x: p.avg_projection_adp ?? p.avg_pick });
+    if (p.avg_projection_adp == null) continue;
+    byPos[p.position].push({ ...p, adp_x: p.avg_projection_adp });
   }
 
   return (
