@@ -203,11 +203,11 @@ function LeaderboardTab({ season, position }: { season: number; position: string
     : data.data;
 
   const sorted = [...filtered].sort((a, b) => {
-    const va = (sortBy === "avg_projection_adp" ? (a.avg_projection_adp ?? a.ending_adp ?? a.avg_pick)
-              : sortBy === "ending_adp" ? (a.ending_adp ?? a.avg_pick)
+    const va = (sortBy === "avg_projection_adp" ? (a.avg_projection_adp ?? 240)
+              : sortBy === "ending_adp" ? (a.ending_adp ?? 240)
               : (a[sortBy] ?? 9999)) as number;
-    const vb = (sortBy === "avg_projection_adp" ? (b.avg_projection_adp ?? b.ending_adp ?? b.avg_pick)
-              : sortBy === "ending_adp" ? (b.ending_adp ?? b.avg_pick)
+    const vb = (sortBy === "avg_projection_adp" ? (b.avg_projection_adp ?? 240)
+              : sortBy === "ending_adp" ? (b.ending_adp ?? 240)
               : (b[sortBy] ?? 9999)) as number;
     return sortDir === "asc" ? va - vb : vb - va;
   });

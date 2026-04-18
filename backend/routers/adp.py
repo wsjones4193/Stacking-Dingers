@@ -258,7 +258,7 @@ def adp_leaderboard(
               )
         ) t ON s.player_id = t.player_id
         WHERE s.season = ?{pos_filter}
-        ORDER BY COALESCE(t.adp, s.avg_pick)
+        ORDER BY COALESCE(t.adp, 240)
     """
     params: list = [season, season, season]
     if position:
