@@ -104,7 +104,7 @@ def main() -> None:
         JOIN players p ON pk.player_id = p.player_id
         JOIN drafts d ON pk.draft_id = d.draft_id
         WHERE p.position IN ('P', 'IF', 'OF')
-          AND d.season >= 2023
+          AND d.season >= 2024
         """,
         conn,
     )
@@ -126,15 +126,14 @@ def main() -> None:
     picks_df["projection_adp"] = picks_df["projection_adp"].fillna(240.0)
     has_proj_adp = True  # always True after fill
 
-    # Total draft rooms per season.
-    # 2023-2025: draft_id = roster-level (12 unique IDs per room) → divide by 12 to get rooms
-    # 2026+:     draft_id = room-level (1 ID shared by 12 teams) → use as-is
-    # Ownership = % of rooms that contained this player, consistent across all seasons.
+    # Total draft rooms per season (denominator for ownership %).
+    # 2024-2025: draft_id = roster-level (12 per room) → total_draft_ids // 12 = rooms
+    # 2026+:     draft_id = room-level → total_draft_ids = rooms directly
     raw_draft_ids = picks_df.groupby("season")["draft_id"].nunique()
-    season_draft_counts = pd.Series(
-        {s: (c if s >= 2026 else c // 12) for s, c in raw_draft_ids.items()},
-        name="total_season_drafts",
-    ).reset_index().rename(columns={"index": "season"})
+    season_draft_counts = pd.DataFrame([
+        {"season": s, "total_season_drafts": (c if s >= 2026 else c // 12)}
+        for s, c in raw_draft_ids.items()
+    ])
 
     # Total unique rosters per season (draft_id × username) — used for scarcity avg_per_draft
     picks_df["roster_key"] = picks_df["draft_id"] + "|" + picks_df["username"]
@@ -151,12 +150,12 @@ def main() -> None:
         .agg(
             avg_pick=("pick_number", "mean"),
             pick_std=("pick_number", "std"),
-            draft_count=("draft_id", "nunique"),   # unique draft rooms containing this player
+            draft_count=("draft_id", "nunique"),  # unique draft_ids containing this player
         )
         .reset_index()
     )
     player_summary = player_summary.merge(season_draft_counts, on="season")
-    # Ownership = % of draft rooms that included this player (max ~100% for consensus picks)
+    # Ownership = % of draft rooms that included this player
     player_summary["ownership_pct"] = (
         player_summary["draft_count"] / player_summary["total_season_drafts"] * 100
     ).round(2)
