@@ -104,7 +104,7 @@ def main() -> None:
         JOIN players p ON pk.player_id = p.player_id
         JOIN drafts d ON pk.draft_id = d.draft_id
         WHERE p.position IN ('P', 'IF', 'OF')
-          AND d.season >= 2024
+          AND d.season >= 2023
         """,
         conn,
     )
@@ -127,8 +127,8 @@ def main() -> None:
     has_proj_adp = True  # always True after fill
 
     # Total draft rooms per season (denominator for ownership %).
-    # 2024-2025: draft_id = roster-level (12 per room) → total_draft_ids // 12 = rooms
-    # 2026+:     draft_id = room-level → total_draft_ids = rooms directly
+    # 2023-2025: draft_id = roster-level (tournament_entry_id, 12 per room) → // 12
+    # 2026+:     draft_id = room-level (original draft_id) → use directly
     raw_draft_ids = picks_df.groupby("season")["draft_id"].nunique()
     season_draft_counts = pd.DataFrame([
         {"season": s, "total_season_drafts": (c if s >= 2026 else c // 12)}
@@ -156,9 +156,15 @@ def main() -> None:
     )
     player_summary = player_summary.merge(season_draft_counts, on="season")
     # Ownership = % of draft rooms that included this player
-    player_summary["ownership_pct"] = (
-        player_summary["draft_count"] / player_summary["total_season_drafts"] * 100
-    ).round(2)
+    # 2023-2025: numerator and denominator are both roster-level → multiply result by 12
+    #            (each room has 12 rosters, so 1/12 teams owning = 100% room ownership)
+    # 2026+:     numerator = rooms, denominator = rooms → use directly
+    player_summary["ownership_pct"] = player_summary.apply(
+        lambda r: min(round(r["draft_count"] / r["total_season_drafts"] * 100 * 12, 2), 100.0)
+        if r["season"] < 2026
+        else round(r["draft_count"] / r["total_season_drafts"] * 100, 2),
+        axis=1
+    )
     player_summary["avg_pick"] = player_summary["avg_pick"].round(2)
     player_summary["pick_std"] = player_summary["pick_std"].round(2)
 
