@@ -6,7 +6,7 @@ Handles column format differences in the 2026 CSV vs prior seasons:
   - overall_pick_number → pick_number
   - team_pick_number → used to derive round_number
   - pick_order → draft_position (seat 1-12)
-  - draft_created_time → draft_date
+  - draft_time → draft_date (actual draft date; draft_created_time is signup date and is ignored)
   - player_id → underdog_player_id
 
 After ingestion, copies normalized CSV to data/csv/2026.csv for
@@ -71,8 +71,8 @@ def load_and_normalize(csv_path: Path) -> pd.DataFrame:
     # Draft position (seat 1-12)
     df["draft_position"] = pd.to_numeric(df["draft_position"], errors="coerce").fillna(1).astype(int)
 
-    # Draft date from draft_created_time
-    df["draft_date"] = pd.to_datetime(df["draft_created_time"], errors="coerce").dt.date
+    # Draft date from draft_time (actual draft date; draft_created_time is signup date and ignored)
+    df["draft_date"] = pd.to_datetime(df["draft_time"], errors="coerce").dt.date
 
     # ADP
     df["projection_adp"] = pd.to_numeric(df["projection_adp"], errors="coerce")
