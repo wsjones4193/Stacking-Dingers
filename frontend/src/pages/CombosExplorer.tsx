@@ -2,7 +2,9 @@
  * Combos Explorer — player co-ownership leaderboard.
  * Shows top combinations by pair rate for a given season and combo size.
  */
+import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { ChevronDown, ChevronUp, ChevronsUpDown } from "lucide-react";
 import { useCombosLeaderboard } from "@/hooks/useCombos";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -11,6 +13,15 @@ import DataAsOf from "@/components/DataAsOf";
 import type { ComboPair } from "@/types/api";
 
 const SEASONS = [2026, 2025, 2024];
+
+type SortCol = "pair_count" | "pair_rate" | "p1_total";
+
+function SortIcon({ col, sortCol, sortDir }: { col: SortCol; sortCol: SortCol; sortDir: "asc" | "desc" }) {
+  if (col !== sortCol) return <ChevronsUpDown className="inline h-3 w-3 ml-1 opacity-30" />;
+  return sortDir === "asc"
+    ? <ChevronUp className="inline h-3 w-3 ml-1" />
+    : <ChevronDown className="inline h-3 w-3 ml-1" />;
+}
 
 function PairRateBar({ pct }: { pct: number }) {
   return (
@@ -37,6 +48,17 @@ export default function CombosExplorer() {
   const [searchParams, setSearchParams] = useSearchParams();
   const season = Number(searchParams.get("season")) || 2026;
   const comboSize = Number(searchParams.get("combo_size")) || 2;
+  const [sortCol, setSortCol] = useState<SortCol>("pair_count");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  function handleSort(col: SortCol) {
+    if (col === sortCol) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortCol(col);
+      setSortDir("desc");
+    }
+  }
 
   function setSeason(s: number) {
     setSearchParams({ season: String(s), combo_size: String(comboSize) }, { replace: true });
@@ -46,6 +68,14 @@ export default function CombosExplorer() {
   }
 
   const { data, loading, error } = useCombosLeaderboard(season, comboSize);
+
+  const sorted = data
+    ? [...data.data].sort((a, b) => {
+        const va = a[sortCol] as number;
+        const vb = b[sortCol] as number;
+        return sortDir === "asc" ? va - vb : vb - va;
+      })
+    : [];
 
   const partnerCols = comboSize === 2
     ? ["Player B"]
@@ -102,16 +132,31 @@ export default function CombosExplorer() {
                 <tr className="border-b border-border text-left text-xs text-muted-foreground">
                   <th className="pb-2 pl-4 pr-2">#</th>
                   <th className="pb-2 pr-4">Player A</th>
-                  <th className="pb-2 pr-4 text-right">Total</th>
+                  <th
+                    className="pb-2 pr-4 text-right cursor-pointer select-none hover:text-foreground"
+                    onClick={() => handleSort("p1_total")}
+                  >
+                    Total <SortIcon col="p1_total" sortCol={sortCol} sortDir={sortDir} />
+                  </th>
                   {partnerCols.map((col) => (
                     <th key={col} className="pb-2 pr-4">{col}</th>
                   ))}
-                  <th className="pb-2 pr-4 text-right">Pair Count</th>
-                  <th className="pb-2 pr-4">Pair Rate</th>
+                  <th
+                    className="pb-2 pr-4 text-right cursor-pointer select-none hover:text-foreground"
+                    onClick={() => handleSort("pair_count")}
+                  >
+                    Pair Count <SortIcon col="pair_count" sortCol={sortCol} sortDir={sortDir} />
+                  </th>
+                  <th
+                    className="pb-2 pr-4 cursor-pointer select-none hover:text-foreground"
+                    onClick={() => handleSort("pair_rate")}
+                  >
+                    Pair Rate <SortIcon col="pair_rate" sortCol={sortCol} sortDir={sortDir} />
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {data.data.map((combo, i) => {
+                {sorted.map((combo, i) => {
                   const partners = playerCells(combo, comboSize);
                   return (
                     <tr
@@ -143,7 +188,7 @@ export default function CombosExplorer() {
                 })}
               </tbody>
             </table>
-            {data.data.length === 0 && (
+            {sorted.length === 0 && (
               <p className="py-10 text-center text-sm text-muted-foreground">
                 No combo data for {season} ({comboSize}-player). Run precompute_combos.py to generate.
               </p>
