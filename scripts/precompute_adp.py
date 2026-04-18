@@ -155,16 +155,14 @@ def main() -> None:
         .reset_index()
     )
     player_summary = player_summary.merge(season_draft_counts, on="season")
-    # Ownership = % of draft rooms that included this player
-    # 2023-2025: numerator and denominator are both roster-level → multiply result by 12
-    #            (each room has 12 rosters, so 1/12 teams owning = 100% room ownership)
-    # 2026+:     numerator = rooms, denominator = rooms → use directly
-    player_summary["ownership_pct"] = player_summary.apply(
-        lambda r: min(round(r["draft_count"] / r["total_season_drafts"] * 100 * 12, 2), 100.0)
-        if r["season"] < 2026
-        else round(r["draft_count"] / r["total_season_drafts"] * 100, 2),
-        axis=1
-    )
+    # Ownership = % of draft rooms that included this player.
+    # For all seasons: draft_count = unique team IDs that drafted the player.
+    # Since each player can only be on 1 team per room, unique team IDs == rooms with player.
+    # total_season_drafts = rooms (team IDs // 12 for pre-2026, direct for 2026+).
+    # So: ownership = draft_count / total_season_drafts * 100 for all seasons.
+    player_summary["ownership_pct"] = (
+        player_summary["draft_count"] / player_summary["total_season_drafts"] * 100
+    ).round(2).clip(upper=100.0)
     player_summary["avg_pick"] = player_summary["avg_pick"].round(2)
     player_summary["pick_std"] = player_summary["pick_std"].round(2)
 
