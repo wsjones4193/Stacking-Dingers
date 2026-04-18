@@ -375,6 +375,24 @@ export interface AdpDailyTimeseriesEntry {
 }
 
 // ---------------------------------------------------------------------------
+// Combos
+// ---------------------------------------------------------------------------
+
+export interface ComboPair {
+  p1_id: number;
+  p1_name: string;
+  p1_total: number;
+  p2_id: number;
+  p2_name: string;
+  p3_id?: number | null;
+  p3_name?: string | null;
+  p4_id?: number | null;
+  p4_name?: string | null;
+  pair_count: number;
+  pair_rate: number;
+}
+
+// ---------------------------------------------------------------------------
 // Filter params (shared across endpoints)
 // ---------------------------------------------------------------------------
 

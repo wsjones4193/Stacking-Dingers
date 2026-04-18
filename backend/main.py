@@ -16,7 +16,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.db.s3_sync import sync_data_from_s3
-from backend.routers import admin, adp, content, history, leaderboard, players, teams
+from backend.routers import admin, adp, combos, content, history, leaderboard, players, teams
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +67,7 @@ app.include_router(history.router, prefix="/api/history",   tags=["history"])
 app.include_router(leaderboard.router, prefix="/api/leaderboard", tags=["leaderboard"])
 app.include_router(content.router, prefix="/api/content",  tags=["content"])
 app.include_router(admin.router,   prefix="/api/admin",     tags=["admin"])
+app.include_router(combos.router,  prefix="/api/combos",    tags=["combos"])
 
 
 # ---------------------------------------------------------------------------

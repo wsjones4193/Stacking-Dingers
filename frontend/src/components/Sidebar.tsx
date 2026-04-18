@@ -10,6 +10,7 @@ import {
   List,
   Mic,
   Settings,
+  Shuffle,
   TrendingUp,
   Users,
   X,
@@ -25,6 +26,7 @@ const DATA_ITEMS = [
   { to: "/adp", icon: TrendingUp, label: "ADP Explorer" },
   { to: "/players", icon: LayoutDashboard, label: "Player Hub" },
   { to: "/teams", icon: Users, label: "Team Analyzer" },
+  { to: "/combos", icon: Shuffle, label: "Combos" },
   { to: "/history", icon: BookOpen, label: "History Browser" },
 ];
 

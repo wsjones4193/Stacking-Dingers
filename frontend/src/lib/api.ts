@@ -13,6 +13,7 @@ import type {
   AdpScarcityCacheEntry,
   AdpScatterPoint,
   ArticleDetail,
+  ComboPair,
   ArticleListResponse,
   CeilingData,
   ComboData,
@@ -162,6 +163,13 @@ export const getHistoryCombos = (
 
 export const getHistoryAdpAccuracy = (filters: GlobalFilters) =>
   get<DataResponse<AdpAccuracyEntry[]>>("/api/history/modules/adp-accuracy", filters);
+
+// ---------------------------------------------------------------------------
+// Combos
+// ---------------------------------------------------------------------------
+
+export const getCombosLeaderboard = (season: number, combo_size: number, limit = 100) =>
+  get<DataResponse<ComboPair[]>>("/api/combos/leaderboard", { season, combo_size, limit });
 
 // ---------------------------------------------------------------------------
 // Admin
