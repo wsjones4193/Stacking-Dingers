@@ -541,114 +541,151 @@ function AdpAccuracyModule({ season }: { season: number }) {
 // Module 6: Positional Scarcity
 // ---------------------------------------------------------------------------
 
-function PositionalScarcityModule({ season }: { season: number }) {
-  const { data, loading, error } = useAdpScarcityCache(season);
+const SEASON_STYLES: Record<number, { stroke: string; dash?: string }> = {
+  2023: { stroke: "#94a3b8", dash: "6 3" },
+  2024: { stroke: "#60a5fa", dash: "4 2" },
+  2025: { stroke: "#34d399" },
+  2026: { stroke: "#f97316" },
+};
+
+function PositionalScarcityModule({ season: _season }: { season: number }) {
+  const s2023 = useAdpScarcityCache(2023);
+  const s2024 = useAdpScarcityCache(2024);
+  const s2025 = useAdpScarcityCache(2025);
+  const s2026 = useAdpScarcityCache(2026);
+
+  const allSeasons = [
+    { season: 2023, result: s2023 },
+    { season: 2024, result: s2024 },
+    { season: 2025, result: s2025 },
+    { season: 2026, result: s2026 },
+  ];
+
+  const loading = allSeasons.some((s) => s.result.loading);
+  const error = allSeasons.find((s) => s.result.error)?.result.error;
 
   if (loading) return <LoadingSpinner />;
   if (error) return <p className="text-destructive text-sm">{error}</p>;
-  if (!data) return null;
-
-  if (data.data.length === 0) {
-    return (
-      <div className="py-12 text-center text-sm text-muted-foreground">
-        No scarcity data for {season}.
-      </div>
-    );
-  }
 
   const positions = ["P", "IF", "OF"];
-  const sampled = data.data.filter((d) => d.pick_number % 5 === 0 || d.pick_number === 1);
 
-  const byPick: Record<number, Record<string, number>> = {};
-  for (const row of sampled) {
-    if (!byPick[row.pick_number]) byPick[row.pick_number] = { pick_number: row.pick_number };
-    byPick[row.pick_number][row.position] = row.avg_per_draft;
-  }
-  const chartData = Object.values(byPick).sort((a, b) => a.pick_number - b.pick_number);
-
-  const maxByPos: Record<string, number> = {};
-  for (const pos of positions) {
-    const last = data.data.filter((d) => d.position === pos).at(-1);
-    maxByPos[pos] = last?.avg_per_draft ?? 0;
-  }
-
-  const milestones: Record<string, { pick: number; count: number }[]> = {};
-  for (const pos of positions) {
-    const posRows = data.data.filter((d) => d.position === pos);
-    const max = Math.floor(maxByPos[pos]);
-    milestones[pos] = [];
-    for (let n = 1; n <= Math.min(max, 5); n++) {
-      const row = posRows.find((d) => d.avg_per_draft >= n);
-      if (row) milestones[pos].push({ pick: row.pick_number, count: n });
+  // Build chart data per position: pick_number → { 2023: val, 2024: val, ... }
+  function buildChartData(pos: string) {
+    const byPick: Record<number, Record<string, number | string>> = {};
+    for (const { season, result } of allSeasons) {
+      if (!result.data) continue;
+      const sampled = result.data.data.filter(
+        (d) => (d.pick_number % 5 === 0 || d.pick_number === 1) && d.position === pos
+      );
+      for (const row of sampled) {
+        if (!byPick[row.pick_number]) byPick[row.pick_number] = { pick_number: row.pick_number };
+        byPick[row.pick_number][String(season)] = row.avg_per_draft;
+      }
     }
+    return Object.values(byPick).sort((a, b) => (a.pick_number as number) - (b.pick_number as number));
+  }
+
+  // Milestone: pick where avg_per_draft >= n, per season per position
+  function getMilestone(pos: string, season: number, n: number): number | null {
+    const rows = allSeasons.find((s) => s.season === season)?.result.data?.data ?? [];
+    const row = rows.find((d) => d.position === pos && d.avg_per_draft >= n);
+    return row?.pick_number ?? null;
+  }
+
+  function getMax(pos: string, season: number): number {
+    const rows = allSeasons.find((s) => s.season === season)?.result.data?.data ?? [];
+    return rows.filter((d) => d.position === pos).at(-1)?.avg_per_draft ?? 0;
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <p className="text-xs text-muted-foreground">
-        Average cumulative number of players at each position drafted per team by pick X.
-        Shows when the draft field starts taking a position — and when supply runs dry.
+        Average cumulative players at each position drafted per team by pick X — all seasons overlaid.
       </p>
 
-      <div className="grid grid-cols-3 gap-3">
-        {positions.map((pos) => (
+      {positions.map((pos) => {
+        const chartData = buildChartData(pos);
+        return (
           <Card key={pos}>
-            <CardHeader className="pb-1 pt-3 px-4">
-              <CardTitle className="text-sm" style={{ color: POSITION_COLORS[pos] }}>
-                {pos} <span className="text-muted-foreground font-normal text-xs">avg {maxByPos[pos].toFixed(1)} per roster</span>
-              </CardTitle>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm" style={{ color: POSITION_COLORS[pos] }}>{pos}</CardTitle>
             </CardHeader>
-            <CardContent className="px-4 pb-3 text-xs space-y-1">
-              {milestones[pos].map(({ pick, count }) => (
-                <div key={count} className="flex justify-between">
-                  <span className="text-muted-foreground">{count}st drafted by pick</span>
-                  <span className="font-semibold">{pick}</span>
-                </div>
-              ))}
+            <CardContent className="space-y-3">
+              {/* Milestone table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-border text-muted-foreground">
+                      <th className="pb-1 text-left">Player #</th>
+                      {allSeasons.map(({ season }) => (
+                        <th key={season} className="pb-1 text-right" style={{ color: SEASON_STYLES[season].stroke }}>{season}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[1, 2, 3, 4, 5, 6].map((n) => (
+                      <tr key={n} className="border-b border-border/40">
+                        <td className="py-1 text-muted-foreground">#{n} drafted by</td>
+                        {allSeasons.map(({ season }) => {
+                          const pick = getMilestone(pos, season, n);
+                          const round = pick ? Math.ceil(pick / 12) : null;
+                          return (
+                            <td key={season} className="py-1 text-right font-medium">
+                              {pick ? `Rd ${round} / Pk ${pick}` : "—"}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                    <tr>
+                      <td className="pt-1 text-muted-foreground">Avg per roster</td>
+                      {allSeasons.map(({ season }) => (
+                        <td key={season} className="pt-1 text-right text-muted-foreground">
+                          {getMax(pos, season).toFixed(1)}
+                        </td>
+                      ))}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Chart */}
+              <ResponsiveContainer width="100%" height={260}>
+                <LineChart data={chartData} margin={{ top: 4, right: 8, bottom: 16, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis
+                    dataKey="pick_number"
+                    label={{ value: "Overall Pick #", position: "insideBottom", offset: -8, fontSize: 10 }}
+                    tick={{ fontSize: 10 }}
+                  />
+                  <YAxis
+                    tickFormatter={(v) => v.toFixed(1)}
+                    tick={{ fontSize: 10 }}
+                    label={{ value: "Avg # Drafted", angle: -90, position: "insideLeft", offset: 10, fontSize: 10 }}
+                  />
+                  <Tooltip
+                    formatter={(v: number, name: string) => [`${v.toFixed(2)}`, name]}
+                    labelFormatter={(l) => `Pick ${l}`}
+                  />
+                  <Legend verticalAlign="top" />
+                  {allSeasons.map(({ season }) => (
+                    <Line
+                      key={season}
+                      type="monotone"
+                      dataKey={String(season)}
+                      stroke={SEASON_STYLES[season].stroke}
+                      strokeDasharray={SEASON_STYLES[season].dash}
+                      dot={false}
+                      strokeWidth={2}
+                      name={String(season)}
+                    />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
             </CardContent>
           </Card>
-        ))}
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Avg Cumulative P / IF / OF Drafted per Team — {season}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={340}>
-            <LineChart data={chartData} margin={{ top: 4, right: 8, bottom: 16, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis
-                dataKey="pick_number"
-                label={{ value: "Overall Pick #", position: "insideBottom", offset: -8, fontSize: 11 }}
-                tick={{ fontSize: 11 }}
-              />
-              <YAxis
-                tickFormatter={(v) => v.toFixed(1)}
-                tick={{ fontSize: 11 }}
-                label={{ value: "Avg # Drafted", angle: -90, position: "insideLeft", offset: 10, fontSize: 11 }}
-              />
-              <Tooltip
-                formatter={(v: number, name: string) => [`${v.toFixed(2)} players`, name]}
-                labelFormatter={(l) => `Pick ${l}`}
-              />
-              <Legend verticalAlign="top" />
-              {positions.map((pos) => (
-                <Line
-                  key={pos}
-                  type="monotone"
-                  dataKey={pos}
-                  stroke={POSITION_COLORS[pos]}
-                  dot={false}
-                  strokeWidth={2.5}
-                />
-              ))}
-            </LineChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-
-      <DataAsOf dataAsOf={data.data_as_of} />
+        );
+      })}
     </div>
   );
 }
