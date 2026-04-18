@@ -126,11 +126,15 @@ def main() -> None:
     picks_df["projection_adp"] = picks_df["projection_adp"].fillna(240.0)
     has_proj_adp = True  # always True after fill
 
-    # Total unique draft rooms per season (draft_id = room, shared by 12 teams in 2026)
-    # Ownership = % of rooms that contained this player — consistent across all seasons
-    season_draft_counts = (
-        picks_df.groupby("season")["draft_id"].nunique().rename("total_season_drafts")
-    )
+    # Total draft rooms per season.
+    # 2023-2025: draft_id = roster-level (12 unique IDs per room) → divide by 12 to get rooms
+    # 2026+:     draft_id = room-level (1 ID shared by 12 teams) → use as-is
+    # Ownership = % of rooms that contained this player, consistent across all seasons.
+    raw_draft_ids = picks_df.groupby("season")["draft_id"].nunique()
+    season_draft_counts = pd.Series(
+        {s: (c if s >= 2026 else c // 12) for s, c in raw_draft_ids.items()},
+        name="total_season_drafts",
+    ).reset_index().rename(columns={"index": "season"})
 
     # Total unique rosters per season (draft_id × username) — used for scarcity avg_per_draft
     picks_df["roster_key"] = picks_df["draft_id"] + "|" + picks_df["username"]
