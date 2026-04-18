@@ -202,15 +202,15 @@ function LeaderboardTab({ season, position }: { season: number; position: string
     ? data.data.filter((p) => p.player_name.toLowerCase().includes(search.toLowerCase()))
     : data.data;
 
-  const sorted = [...filtered].sort((a, b) => {
-    const va = (sortBy === "avg_projection_adp" ? (a.avg_projection_adp ?? 240)
-              : sortBy === "ending_adp" ? (a.ending_adp ?? 240)
-              : (a[sortBy] ?? 9999)) as number;
-    const vb = (sortBy === "avg_projection_adp" ? (b.avg_projection_adp ?? 240)
-              : sortBy === "ending_adp" ? (b.ending_adp ?? 240)
-              : (b[sortBy] ?? 9999)) as number;
-    return sortDir === "asc" ? va - vb : vb - va;
-  });
+  function sortVal(p: AdpPlayerSummaryEntry): number {
+    if (sortBy === "avg_projection_adp") return p.avg_projection_adp ?? 240;
+    if (sortBy === "ending_adp") return p.ending_adp ?? 240;
+    return (p[sortBy] as number) ?? 9999;
+  }
+
+  const sorted = [...filtered].sort((a, b) =>
+    sortDir === "asc" ? sortVal(a) - sortVal(b) : sortVal(b) - sortVal(a)
+  );
 
   const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
   const paginated = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -271,7 +271,10 @@ function LeaderboardTab({ season, position }: { season: number; position: string
                       onClick={() => setExpandedId(expanded ? null : p.player_id)}
                       className={`cursor-pointer border-b border-border/50 transition-colors ${expanded ? "bg-accent/30" : "hover:bg-accent/20"}`}
                     >
-                      <td className="py-1.5 text-xs text-muted-foreground">{rank}</td>
+                      <td className="py-1.5 text-xs text-muted-foreground">
+                        {rank}
+                        <span className="ml-1 text-[9px] text-orange-400">[{sortVal(p).toFixed(1)}]</span>
+                      </td>
                       <td className="py-1.5 font-medium">{p.player_name}</td>
                       <td className="py-1.5">
                         <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${posBadge(p.position)}`}>
