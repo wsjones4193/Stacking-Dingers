@@ -141,11 +141,12 @@ def main() -> None:
                 if count < MIN_PAIR_COUNT:
                     continue
 
-                # p1 = rarest player (min total) → highest conditional pair_rate
-                sorted_combo = sorted(combo, key=lambda p: player_totals[p])
+                # Sort players by id for stable ordering (no rarest-player logic needed)
+                sorted_combo = sorted(combo)
                 p1_id = sorted_combo[0]
                 p1_total = player_totals[p1_id]
-                pair_rate = round(count / p1_total * 100, 2)
+                # pair_rate = % of all rosters that had this combination
+                pair_rate = round(count / total_rosters * 100, 2)
 
                 row: dict = {
                     "season": season,
