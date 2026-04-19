@@ -4,10 +4,11 @@
  */
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ChevronDown, ChevronUp, ChevronsUpDown } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronsUpDown, X } from "lucide-react";
 import { useCombosLeaderboard } from "@/hooks/useCombos";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import DataAsOf from "@/components/DataAsOf";
 import type { ComboPair } from "@/types/api";
@@ -70,6 +71,7 @@ export default function CombosExplorer() {
   const comboSize = Number(searchParams.get("combo_size")) || 2;
   const [sortCol, setSortCol] = useState<SortCol>("pair_count");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [playerFilter, setPlayerFilter] = useState("");
 
   function handleSort(col: SortCol) {
     if (col === sortCol) {
@@ -86,18 +88,29 @@ export default function CombosExplorer() {
   function setComboSize(k: number) {
     setSortCol("pair_count");
     setSortDir("desc");
+    setPlayerFilter("");
     setSearchParams({ season: String(season), combo_size: String(k) }, { replace: true });
   }
 
   const { data, loading, error } = useCombosLeaderboard(season, comboSize);
 
-  const sorted = data
-    ? [...data.data].sort((a, b) => {
-        const va = (a[sortCol] as number | null) ?? -Infinity;
-        const vb = (b[sortCol] as number | null) ?? -Infinity;
-        return sortDir === "asc" ? va - vb : vb - va;
+  const q = playerFilter.trim().toLowerCase();
+
+  const filtered = data
+    ? data.data.filter((combo) => {
+        if (!q) return true;
+        const names = [combo.p1_name, combo.p2_name, combo.p3_name, combo.p4_name]
+          .filter(Boolean)
+          .map((n) => n!.toLowerCase());
+        return names.some((n) => n.includes(q));
       })
     : [];
+
+  const sorted = [...filtered].sort((a, b) => {
+    const va = (a[sortCol] as number | null) ?? -Infinity;
+    const vb = (b[sortCol] as number | null) ?? -Infinity;
+    return sortDir === "asc" ? va - vb : vb - va;
+  });
 
   const partnerCols = comboSize === 2
     ? ["Player B"]
@@ -147,6 +160,24 @@ export default function CombosExplorer() {
             </SelectContent>
           </Select>
         </div>
+      </div>
+
+      {/* Player filter */}
+      <div className="relative w-64">
+        <Input
+          placeholder="Filter by player name..."
+          value={playerFilter}
+          onChange={(e) => setPlayerFilter(e.target.value)}
+          className="pr-7 text-sm"
+        />
+        {playerFilter && (
+          <button
+            onClick={() => setPlayerFilter("")}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
 
       {/* Metric legend */}

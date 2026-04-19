@@ -28,7 +28,7 @@ def _conn():
 def combos_leaderboard(
     season: int = Query(default=2026),
     combo_size: int = Query(default=2, ge=2, le=4),
-    limit: int = Query(default=100, le=500),
+    limit: int = Query(default=500, le=2000),
     position: Optional[str] = Query(default=None, description="P | IF | OF — filter by p1 position"),
 ):
     """Top combos by pair_rate for a given season and combo size."""
