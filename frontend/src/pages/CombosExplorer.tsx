@@ -1,6 +1,6 @@
 /**
- * Combos Explorer — player co-ownership leaderboard.
- * Shows top combinations by pair rate for a given season and combo size.
+ * Combos Explorer — association rule mining on player co-ownership.
+ * Metrics: support, confidence, lift, conviction.
  */
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
@@ -14,7 +14,33 @@ import type { ComboPair } from "@/types/api";
 
 const SEASONS = [2026, 2025, 2024];
 
-type SortCol = "pair_count" | "pair_rate" | "p1_total";
+// ---------------------------------------------------------------------------
+// Metric definitions shown in the legend
+// ---------------------------------------------------------------------------
+const METRIC_DEFS = [
+  {
+    key: "support",
+    label: "Support",
+    desc: "% of all rosters that drafted this combo",
+  },
+  {
+    key: "confidence",
+    label: "Confidence",
+    desc: "Given Player A, how often the rest also appear",
+  },
+  {
+    key: "lift",
+    label: "Lift",
+    desc: "How much more often than random chance (>1 = positive correlation)",
+  },
+  {
+    key: "conviction",
+    label: "Conviction",
+    desc: "Strength of implication A→B. Higher = stronger rule (k=2 only)",
+  },
+];
+
+type SortCol = "pair_count" | "support" | "confidence" | "lift" | "conviction";
 
 function SortIcon({ col, sortCol, sortDir }: { col: SortCol; sortCol: SortCol; sortDir: "asc" | "desc" }) {
   if (col !== sortCol) return <ChevronsUpDown className="inline h-3 w-3 ml-1 opacity-30" />;
@@ -23,25 +49,27 @@ function SortIcon({ col, sortCol, sortDir }: { col: SortCol; sortCol: SortCol; s
     : <ChevronDown className="inline h-3 w-3 ml-1" />;
 }
 
-function PairRateBar({ pct }: { pct: number }) {
+function SortTh({ col, label, sortCol, sortDir, onSort, className = "" }: {
+  col: SortCol; label: string; sortCol: SortCol; sortDir: "asc" | "desc";
+  onSort: (c: SortCol) => void; className?: string;
+}) {
   return (
-    <div className="flex items-center gap-2">
-      <div className="h-1.5 w-20 rounded-full bg-muted overflow-hidden">
-        <div
-          className="h-full rounded-full bg-primary/70"
-          style={{ width: `${Math.min(pct, 100)}%` }}
-        />
-      </div>
-      <span className="tabular-nums text-xs font-medium">{pct.toFixed(1)}%</span>
-    </div>
+    <th
+      className={`pb-2 pr-4 cursor-pointer select-none hover:text-foreground ${className}`}
+      onClick={() => onSort(col)}
+    >
+      {label} <SortIcon col={col} sortCol={sortCol} sortDir={sortDir} />
+    </th>
   );
 }
 
-function playerCells(combo: ComboPair, k: number) {
-  const players = [combo.p2_name];
-  if (k >= 3 && combo.p3_name) players.push(combo.p3_name);
-  if (k === 4 && combo.p4_name) players.push(combo.p4_name);
-  return players;
+function MetricCell({ value, format }: { value: number | null | undefined; format: "pct" | "num" | "conv" }) {
+  if (value == null) return <td className="py-2 pr-4 text-right text-muted-foreground text-xs">—</td>;
+  let display: string;
+  if (format === "pct") display = `${value.toFixed(2)}%`;
+  else if (format === "conv") display = value > 999 ? ">999" : value.toFixed(2);
+  else display = value.toFixed(2);
+  return <td className="py-2 pr-4 text-right tabular-nums text-xs">{display}</td>;
 }
 
 export default function CombosExplorer() {
@@ -64,6 +92,8 @@ export default function CombosExplorer() {
     setSearchParams({ season: String(s), combo_size: String(comboSize) }, { replace: true });
   }
   function setComboSize(k: number) {
+    setSortCol("pair_count");
+    setSortDir("desc");
     setSearchParams({ season: String(season), combo_size: String(k) }, { replace: true });
   }
 
@@ -71,8 +101,8 @@ export default function CombosExplorer() {
 
   const sorted = data
     ? [...data.data].sort((a, b) => {
-        const va = a[sortCol] as number;
-        const vb = b[sortCol] as number;
+        const va = (a[sortCol] as number | null) ?? -Infinity;
+        const vb = (b[sortCol] as number | null) ?? -Infinity;
         return sortDir === "asc" ? va - vb : vb - va;
       })
     : [];
@@ -83,6 +113,13 @@ export default function CombosExplorer() {
     ? ["Player B", "Player C"]
     : ["Player B", "Player C", "Player D"];
 
+  function getPartners(combo: ComboPair) {
+    const names = [combo.p2_name];
+    if (comboSize >= 3 && combo.p3_name) names.push(combo.p3_name);
+    if (comboSize === 4 && combo.p4_name) names.push(combo.p4_name);
+    return names;
+  }
+
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -90,11 +127,10 @@ export default function CombosExplorer() {
         <div>
           <h1 className="text-xl font-bold">Combos</h1>
           <p className="text-sm text-muted-foreground">
-            Top co-ownership combinations ranked by pair rate.
+            Association rule mining on player co-ownership.
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {/* Combo size toggle */}
           <div className="flex gap-1">
             {[2, 3, 4].map((k) => (
               <button
@@ -121,6 +157,16 @@ export default function CombosExplorer() {
         </div>
       </div>
 
+      {/* Metric legend */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {METRIC_DEFS.map((m) => (
+          <div key={m.key} className="rounded-md border border-border bg-card px-3 py-2">
+            <p className="text-xs font-semibold text-primary">{m.label}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{m.desc}</p>
+          </div>
+        ))}
+      </div>
+
       {loading && <LoadingSpinner />}
       {error && <p className="text-destructive text-sm">{error}</p>}
 
@@ -132,57 +178,36 @@ export default function CombosExplorer() {
                 <tr className="border-b border-border text-left text-xs text-muted-foreground">
                   <th className="pb-2 pl-4 pr-2">#</th>
                   <th className="pb-2 pr-4">Player A</th>
-                  <th
-                    className="pb-2 pr-4 text-right cursor-pointer select-none hover:text-foreground"
-                    onClick={() => handleSort("p1_total")}
-                  >
-                    Total <SortIcon col="p1_total" sortCol={sortCol} sortDir={sortDir} />
-                  </th>
                   {partnerCols.map((col) => (
                     <th key={col} className="pb-2 pr-4">{col}</th>
                   ))}
-                  <th
-                    className="pb-2 pr-4 text-right cursor-pointer select-none hover:text-foreground"
-                    onClick={() => handleSort("pair_count")}
-                  >
-                    Pair Count <SortIcon col="pair_count" sortCol={sortCol} sortDir={sortDir} />
-                  </th>
-                  <th
-                    className="pb-2 pr-4 cursor-pointer select-none hover:text-foreground"
-                    onClick={() => handleSort("pair_rate")}
-                  >
-                    Pair Rate <SortIcon col="pair_rate" sortCol={sortCol} sortDir={sortDir} />
-                  </th>
+                  <SortTh col="pair_count" label="Count"   sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right" />
+                  <SortTh col="support"    label="Support"    sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right" />
+                  <SortTh col="confidence" label="Confidence" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right" />
+                  <SortTh col="lift"       label="Lift"       sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right" />
+                  {comboSize === 2 && (
+                    <SortTh col="conviction" label="Conviction" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right" />
+                  )}
                 </tr>
               </thead>
               <tbody>
                 {sorted.map((combo, i) => {
-                  const partners = playerCells(combo, comboSize);
+                  const partners = getPartners(combo);
                   return (
-                    <tr
-                      key={i}
-                      className="border-b border-border/40 hover:bg-accent/20 transition-colors"
-                    >
+                    <tr key={i} className="border-b border-border/40 hover:bg-accent/20 transition-colors">
                       <td className="py-2 pl-4 pr-2 text-muted-foreground text-xs">{i + 1}</td>
                       <td className="py-2 pr-4 font-medium">{combo.p1_name}</td>
-                      <td className="py-2 pr-4 text-right tabular-nums text-muted-foreground text-xs">
-                        {combo.p1_total.toLocaleString()}
-                      </td>
                       {partners.map((name, j) => (
-                        <td key={j} className="py-2 pr-4 text-muted-foreground">
-                          {name}
-                        </td>
+                        <td key={j} className="py-2 pr-4 text-muted-foreground">{name}</td>
                       ))}
-                      {/* pad empty cells for shorter combos in 4-player view */}
                       {Array.from({ length: partnerCols.length - partners.length }).map((_, j) => (
                         <td key={`pad-${j}`} className="py-2 pr-4" />
                       ))}
-                      <td className="py-2 pr-4 text-right tabular-nums">
-                        {combo.pair_count.toLocaleString()}
-                      </td>
-                      <td className="py-2 pr-4">
-                        <PairRateBar pct={combo.pair_rate} />
-                      </td>
+                      <td className="py-2 pr-4 text-right tabular-nums text-xs">{combo.pair_count.toLocaleString()}</td>
+                      <MetricCell value={combo.support}    format="pct" />
+                      <MetricCell value={combo.confidence} format="pct" />
+                      <MetricCell value={combo.lift}       format="num" />
+                      {comboSize === 2 && <MetricCell value={combo.conviction} format="conv" />}
                     </tr>
                   );
                 })}
@@ -190,7 +215,7 @@ export default function CombosExplorer() {
             </table>
             {sorted.length === 0 && (
               <p className="py-10 text-center text-sm text-muted-foreground">
-                No combo data for {season} ({comboSize}-player). Run precompute_combos.py to generate.
+                No combo data for {season} ({comboSize}-player).
               </p>
             )}
           </CardContent>

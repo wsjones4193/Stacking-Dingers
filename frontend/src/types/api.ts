@@ -384,12 +384,16 @@ export interface ComboPair {
   p1_total: number;
   p2_id: number;
   p2_name: string;
+  p2_total: number;
   p3_id?: number | null;
   p3_name?: string | null;
   p4_id?: number | null;
   p4_name?: string | null;
   pair_count: number;
-  pair_rate: number;
+  support: number;      // % of all rosters with this combo
+  confidence: number;   // % of p1 rosters that also have the rest
+  lift: number | null;  // how much more often than chance
+  conviction: number | null; // strength of implication (k=2 only)
 }
 
 // ---------------------------------------------------------------------------

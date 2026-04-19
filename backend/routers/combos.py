@@ -46,15 +46,15 @@ def combos_leaderboard(
     sql = f"""
         SELECT
             c.p1_id, c.p1_name, c.p1_total,
-            c.p2_id, c.p2_name,
+            c.p2_id, c.p2_name, c.p2_total,
             c.p3_id, c.p3_name,
             c.p4_id, c.p4_name,
-            c.pair_count, c.pair_rate
+            c.pair_count, c.support, c.confidence, c.lift, c.conviction
         FROM combo_pairs c
         {pos_join}
         WHERE c.season = ? AND c.combo_size = ?
         {pos_filter}
-        ORDER BY c.pair_rate DESC
+        ORDER BY c.pair_count DESC
         LIMIT ?
     """
     params.append(limit)
@@ -65,10 +65,14 @@ def combos_leaderboard(
     data = [
         {
             "p1_id": r[0], "p1_name": r[1], "p1_total": r[2],
-            "p2_id": r[3], "p2_name": r[4],
-            "p3_id": r[5], "p3_name": r[6],
-            "p4_id": r[7], "p4_name": r[8],
-            "pair_count": r[9], "pair_rate": r[10],
+            "p2_id": r[3], "p2_name": r[4], "p2_total": r[5],
+            "p3_id": r[6], "p3_name": r[7],
+            "p4_id": r[8], "p4_name": r[9],
+            "pair_count": r[10],
+            "support": r[11],
+            "confidence": r[12],
+            "lift": r[13],
+            "conviction": r[14],
         }
         for r in rows
     ]
