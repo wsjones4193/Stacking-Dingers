@@ -33,14 +33,9 @@ const METRIC_DEFS = [
     label: "Lift",
     desc: "How much more often than random chance (>1 = positive correlation)",
   },
-  {
-    key: "conviction",
-    label: "Conviction",
-    desc: "Strength of implication A→B. Higher = stronger rule (k=2 only)",
-  },
 ];
 
-type SortCol = "pair_count" | "support" | "confidence" | "lift" | "conviction";
+type SortCol = "pair_count" | "support" | "confidence" | "lift";
 
 function SortIcon({ col, sortCol, sortDir }: { col: SortCol; sortCol: SortCol; sortDir: "asc" | "desc" }) {
   if (col !== sortCol) return <ChevronsUpDown className="inline h-3 w-3 ml-1 opacity-30" />;
@@ -63,12 +58,9 @@ function SortTh({ col, label, sortCol, sortDir, onSort, className = "" }: {
   );
 }
 
-function MetricCell({ value, format }: { value: number | null | undefined; format: "pct" | "num" | "conv" }) {
+function MetricCell({ value, format }: { value: number | null | undefined; format: "pct" | "num" }) {
   if (value == null) return <td className="py-2 pr-4 text-right text-muted-foreground text-xs">—</td>;
-  let display: string;
-  if (format === "pct") display = `${value.toFixed(2)}%`;
-  else if (format === "conv") display = value > 999 ? ">999" : value.toFixed(2);
-  else display = value.toFixed(2);
+  const display = format === "pct" ? `${value.toFixed(2)}%` : value.toFixed(2);
   return <td className="py-2 pr-4 text-right tabular-nums text-xs">{display}</td>;
 }
 
@@ -185,9 +177,6 @@ export default function CombosExplorer() {
                   <SortTh col="support"    label="Support"    sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right" />
                   <SortTh col="confidence" label="Confidence" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right" />
                   <SortTh col="lift"       label="Lift"       sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right" />
-                  {comboSize === 2 && (
-                    <SortTh col="conviction" label="Conviction" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right" />
-                  )}
                 </tr>
               </thead>
               <tbody>
@@ -207,7 +196,6 @@ export default function CombosExplorer() {
                       <MetricCell value={combo.support}    format="pct" />
                       <MetricCell value={combo.confidence} format="pct" />
                       <MetricCell value={combo.lift}       format="num" />
-                      {comboSize === 2 && <MetricCell value={combo.conviction} format="conv" />}
                     </tr>
                   );
                 })}
