@@ -94,25 +94,9 @@ export default function CombosExplorer() {
     setSearchParams({ season: String(season), combo_size: String(k) }, { replace: true });
   }
 
-  const { data, loading, error } = useCombosLeaderboard(season, comboSize);
+  const { data, loading, error } = useCombosLeaderboard(season, comboSize, filterA, filterB);
 
-  const qA = filterA.trim().toLowerCase();
-  const qB = filterB.trim().toLowerCase();
-
-  const filtered = data
-    ? data.data.filter((combo) => {
-        if (qA && !combo.p1_name.toLowerCase().includes(qA)) return false;
-        if (qB) {
-          const bNames = [combo.p2_name, combo.p3_name, combo.p4_name]
-            .filter(Boolean)
-            .map((n) => n!.toLowerCase());
-          if (!bNames.some((n) => n.includes(qB))) return false;
-        }
-        return true;
-      })
-    : [];
-
-  const sorted = [...filtered].sort((a, b) => {
+  const sorted = [...(data?.data ?? [])].sort((a, b) => {
     const va = (a[sortCol] as number | null) ?? -Infinity;
     const vb = (b[sortCol] as number | null) ?? -Infinity;
     return sortDir === "asc" ? va - vb : vb - va;
@@ -249,9 +233,9 @@ export default function CombosExplorer() {
                 })}
               </tbody>
             </table>
-            {sorted.length === 0 && (
+            {!loading && sorted.length === 0 && (
               <p className="py-10 text-center text-sm text-muted-foreground">
-                No combo data for {season} ({comboSize}-player).
+                No results{filterA || filterB ? " for that filter" : ""}.
               </p>
             )}
           </CardContent>

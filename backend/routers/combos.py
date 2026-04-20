@@ -1,7 +1,8 @@
 """
 /api/combos — pre-computed player combo co-ownership.
 
-GET /api/combos/leaderboard?season=2026&combo_size=2&limit=100
+GET /api/combos/leaderboard?season=2026&combo_size=2&limit=500
+GET /api/combos/leaderboard?season=2026&combo_size=2&player_a=Rooker&player_b=Soderstrom
 """
 
 from __future__ import annotations
@@ -29,19 +30,26 @@ def combos_leaderboard(
     season: int = Query(default=2026),
     combo_size: int = Query(default=2, ge=2, le=4),
     limit: int = Query(default=500, le=2000),
-    position: Optional[str] = Query(default=None, description="P | IF | OF — filter by p1 position"),
+    player_a: Optional[str] = Query(default=None, description="Filter by Player A name (partial match)"),
+    player_b: Optional[str] = Query(default=None, description="Filter by Player B/C/D name (partial match)"),
 ):
-    """Top combos by pair_rate for a given season and combo size."""
+    """Top combos by pair_count. When player_a or player_b are provided, searches all rows for that player."""
     conn = _conn()
 
-    pos_join = ""
-    pos_filter = ""
     params: list = [season, combo_size]
+    filters = []
 
-    if position:
-        pos_join = "JOIN players pl ON c.p1_id = pl.player_id"
-        pos_filter = "AND pl.position = ?"
-        params.append(position.upper())
+    if player_a:
+        filters.append("LOWER(c.p1_name) LIKE ?")
+        params.append(f"%{player_a.lower()}%")
+
+    if player_b:
+        b_clause = "(LOWER(c.p2_name) LIKE ? OR LOWER(c.p3_name) LIKE ? OR LOWER(c.p4_name) LIKE ?)"
+        filters.append(b_clause)
+        pct = f"%{player_b.lower()}%"
+        params.extend([pct, pct, pct])
+
+    where_extra = ("AND " + " AND ".join(filters)) if filters else ""
 
     sql = f"""
         SELECT
@@ -51,9 +59,8 @@ def combos_leaderboard(
             c.p4_id, c.p4_name,
             c.pair_count, c.support, c.confidence, c.lift, c.conviction
         FROM combo_pairs c
-        {pos_join}
         WHERE c.season = ? AND c.combo_size = ?
-        {pos_filter}
+        {where_extra}
         ORDER BY c.pair_count DESC
         LIMIT ?
     """

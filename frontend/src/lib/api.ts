@@ -168,8 +168,14 @@ export const getHistoryAdpAccuracy = (filters: GlobalFilters) =>
 // Combos
 // ---------------------------------------------------------------------------
 
-export const getCombosLeaderboard = (season: number, combo_size: number, limit = 100) =>
-  get<DataResponse<ComboPair[]>>("/api/combos/leaderboard", { season, combo_size, limit });
+export const getCombosLeaderboard = (
+  season: number,
+  combo_size: number,
+  limit = 500,
+  player_a?: string,
+  player_b?: string,
+) =>
+  get<DataResponse<ComboPair[]>>("/api/combos/leaderboard", { season, combo_size, limit, player_a, player_b });
 
 // ---------------------------------------------------------------------------
 // Admin
