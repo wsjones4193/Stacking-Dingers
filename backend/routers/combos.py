@@ -39,15 +39,20 @@ def combos_leaderboard(
     params: list = [season, combo_size]
     filters = []
 
+    def _any_player_clause(val: str) -> tuple[str, list]:
+        clause = "(LOWER(c.p1_name) LIKE ? OR LOWER(c.p2_name) LIKE ? OR LOWER(c.p3_name) LIKE ? OR LOWER(c.p4_name) LIKE ?)"
+        pct = f"%{val.lower()}%"
+        return clause, [pct, pct, pct, pct]
+
     if player_a:
-        filters.append("LOWER(c.p1_name) LIKE ?")
-        params.append(f"%{player_a.lower()}%")
+        clause, p = _any_player_clause(player_a)
+        filters.append(clause)
+        params.extend(p)
 
     if player_b:
-        b_clause = "(LOWER(c.p2_name) LIKE ? OR LOWER(c.p3_name) LIKE ? OR LOWER(c.p4_name) LIKE ?)"
-        filters.append(b_clause)
-        pct = f"%{player_b.lower()}%"
-        params.extend([pct, pct, pct])
+        clause, p = _any_player_clause(player_b)
+        filters.append(clause)
+        params.extend(p)
 
     where_extra = ("AND " + " AND ".join(filters)) if filters else ""
 
