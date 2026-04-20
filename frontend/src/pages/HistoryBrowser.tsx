@@ -3,7 +3,7 @@
  * Routing: /history (dashboard) and /history/:moduleId (module detail).
  */
 import { useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import {
   Bar,
   BarChart,
@@ -18,7 +18,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { ArrowLeft, BarChart2, Layers, PieChart, Star, TrendingUp, Users } from "lucide-react";
+import { BarChart2, Layers, PieChart, Star, TrendingUp, Users } from "lucide-react";
 import {
   useAdpAccuracyData,
   useCeilingData,
@@ -792,7 +792,6 @@ const MODULE_COMPONENTS: Record<string, React.ComponentType<{ season: number }>>
 };
 
 function ModuleView({ moduleId, season }: { moduleId: string; season: number }) {
-  const navigate = useNavigate();
   const [, setSearchParams] = useSearchParams();
   const meta = MODULES.find((m) => m.id === moduleId);
   const Component = MODULE_COMPONENTS[moduleId];
@@ -803,12 +802,6 @@ function ModuleView({ moduleId, season }: { moduleId: string; season: number }) 
 
   return (
     <div className="space-y-4">
-      <button
-        onClick={() => navigate("/history")}
-        className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" /> History Browser
-      </button>
       {meta && (
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>

@@ -3,14 +3,19 @@
  */
 import { NavLink } from "react-router-dom";
 import {
-  BookOpen,
+  BarChart2,
+  BarChart,
   FileText,
   Home,
   LayoutDashboard,
+  Layers,
   List,
   Mic,
+  PieChart,
   Settings,
   Shuffle,
+  Star,
+  Target,
   TrendingUp,
   Users,
   X,
@@ -27,7 +32,12 @@ const DATA_ITEMS = [
   { to: "/players", icon: LayoutDashboard, label: "Player Hub" },
   { to: "/teams", icon: Users, label: "Team Analyzer" },
   { to: "/combos", icon: Shuffle, label: "Combos" },
-  { to: "/history", icon: BookOpen, label: "History Browser" },
+  { to: "/history/ceiling", icon: Star, label: "Ceiling Analysis" },
+  { to: "/history/stacking", icon: Layers, label: "Stacking" },
+  { to: "/history/draft-structure", icon: BarChart2, label: "Draft Structure" },
+  { to: "/history/adp-accuracy", icon: Target, label: "ADP Accuracy" },
+  { to: "/history/positional-scarcity", icon: PieChart, label: "Positional Scarcity" },
+  { to: "/history/round-composition", icon: BarChart, label: "Round Composition" },
 ];
 
 function NavItem({ to, icon: Icon, label, onClick }: { to: string; icon: React.ElementType; label: string; onClick?: () => void }) {
