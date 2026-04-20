@@ -30,7 +30,6 @@ const CONTENT_ITEMS = [
 const DATA_ITEMS = [
   { to: "/adp", icon: TrendingUp, label: "ADP Explorer" },
   { to: "/combos", icon: Shuffle, label: "Combos" },
-  { to: "/history/stacking", icon: Layers, label: "Stacking" },
   { to: "/history/positional-scarcity", icon: PieChart, label: "Positional Scarcity" },
   { to: "/history/round-composition", icon: BarChart, label: "Round Composition" },
 ];
@@ -39,6 +38,7 @@ const COMING_SOON_ITEMS = [
   { to: "/players", icon: LayoutDashboard, label: "Player Hub" },
   { to: "/teams", icon: Users, label: "Team Analyzer" },
   { to: "/history/ceiling", icon: Star, label: "Ceiling Analysis" },
+  { to: "/history/stacking", icon: Layers, label: "Stacking" },
   { to: "/history/draft-structure", icon: BarChart2, label: "Draft Structure" },
   { to: "/history/adp-accuracy", icon: Target, label: "ADP Accuracy" },
 ];
