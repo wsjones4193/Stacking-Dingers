@@ -29,15 +29,18 @@ const CONTENT_ITEMS = [
 
 const DATA_ITEMS = [
   { to: "/adp", icon: TrendingUp, label: "ADP Explorer" },
-  { to: "/players", icon: LayoutDashboard, label: "Player Hub" },
-  { to: "/teams", icon: Users, label: "Team Analyzer" },
   { to: "/combos", icon: Shuffle, label: "Combos" },
-  { to: "/history/ceiling", icon: Star, label: "Ceiling Analysis" },
   { to: "/history/stacking", icon: Layers, label: "Stacking" },
-  { to: "/history/draft-structure", icon: BarChart2, label: "Draft Structure" },
-  { to: "/history/adp-accuracy", icon: Target, label: "ADP Accuracy" },
   { to: "/history/positional-scarcity", icon: PieChart, label: "Positional Scarcity" },
   { to: "/history/round-composition", icon: BarChart, label: "Round Composition" },
+];
+
+const COMING_SOON_ITEMS = [
+  { to: "/players", icon: LayoutDashboard, label: "Player Hub" },
+  { to: "/teams", icon: Users, label: "Team Analyzer" },
+  { to: "/history/ceiling", icon: Star, label: "Ceiling Analysis" },
+  { to: "/history/draft-structure", icon: BarChart2, label: "Draft Structure" },
+  { to: "/history/adp-accuracy", icon: Target, label: "ADP Accuracy" },
 ];
 
 function NavItem({ to, icon: Icon, label, onClick }: { to: string; icon: React.ElementType; label: string; onClick?: () => void }) {
@@ -103,6 +106,30 @@ export default function Sidebar({ onClose }: SidebarProps) {
           <div className="flex flex-col gap-1">
             {DATA_ITEMS.map((item) => (
               <NavItem key={item.to} {...item} onClick={onClose} />
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="px-3 mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">Under Construction</p>
+          <div className="flex flex-col gap-1">
+            {COMING_SOON_ITEMS.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                onClick={onClose}
+                className={({ isActive }) =>
+                  cn(
+                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                    isActive
+                      ? "bg-primary/15 text-primary"
+                      : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                  )
+                }
+              >
+                <item.icon className="h-4 w-4 shrink-0 opacity-50" />
+                <span className="flex-1">{item.label}</span>
+                <span className="text-[10px] text-muted-foreground/60 font-normal">🚧</span>
+              </NavLink>
             ))}
           </div>
         </div>
