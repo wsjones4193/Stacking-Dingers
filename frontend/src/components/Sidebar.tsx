@@ -136,7 +136,22 @@ export default function Sidebar({ onClose }: SidebarProps) {
         <div>
           <p className="px-3 mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">Leaderboard</p>
           <div className="flex flex-col gap-1">
-            <NavItem to="/leaderboard" icon={List} label="Leaderboard" onClick={onClose} />
+            <NavLink
+              to="/leaderboard"
+              onClick={onClose}
+              className={({ isActive }) =>
+                cn(
+                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                  isActive
+                    ? "bg-primary/15 text-primary"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                )
+              }
+            >
+              <List className="h-4 w-4 shrink-0 opacity-50" />
+              <span className="flex-1">Leaderboard</span>
+              <span className="text-[10px] text-muted-foreground/60 font-normal">🚧</span>
+            </NavLink>
           </div>
         </div>
       </nav>
