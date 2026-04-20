@@ -71,7 +71,8 @@ export default function CombosExplorer() {
   const comboSize = Number(searchParams.get("combo_size")) || 2;
   const [sortCol, setSortCol] = useState<SortCol>("pair_count");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-  const [playerFilter, setPlayerFilter] = useState("");
+  const [filterA, setFilterA] = useState("");
+  const [filterB, setFilterB] = useState("");
 
   function handleSort(col: SortCol) {
     if (col === sortCol) {
@@ -88,21 +89,26 @@ export default function CombosExplorer() {
   function setComboSize(k: number) {
     setSortCol("pair_count");
     setSortDir("desc");
-    setPlayerFilter("");
+    setFilterA("");
+    setFilterB("");
     setSearchParams({ season: String(season), combo_size: String(k) }, { replace: true });
   }
 
   const { data, loading, error } = useCombosLeaderboard(season, comboSize);
 
-  const q = playerFilter.trim().toLowerCase();
+  const qA = filterA.trim().toLowerCase();
+  const qB = filterB.trim().toLowerCase();
 
   const filtered = data
     ? data.data.filter((combo) => {
-        if (!q) return true;
-        const names = [combo.p1_name, combo.p2_name, combo.p3_name, combo.p4_name]
-          .filter(Boolean)
-          .map((n) => n!.toLowerCase());
-        return names.some((n) => n.includes(q));
+        if (qA && !combo.p1_name.toLowerCase().includes(qA)) return false;
+        if (qB) {
+          const bNames = [combo.p2_name, combo.p3_name, combo.p4_name]
+            .filter(Boolean)
+            .map((n) => n!.toLowerCase());
+          if (!bNames.some((n) => n.includes(qB))) return false;
+        }
+        return true;
       })
     : [];
 
@@ -162,22 +168,33 @@ export default function CombosExplorer() {
         </div>
       </div>
 
-      {/* Player filter */}
-      <div className="relative w-64">
-        <Input
-          placeholder="Filter by player name..."
-          value={playerFilter}
-          onChange={(e) => setPlayerFilter(e.target.value)}
-          className="pr-7 text-sm"
-        />
-        {playerFilter && (
-          <button
-            onClick={() => setPlayerFilter("")}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        )}
+      {/* Player filters */}
+      <div className="flex gap-3 flex-wrap">
+        {(["A", "B"] as const).map((slot) => {
+          const val = slot === "A" ? filterA : filterB;
+          const set = slot === "A" ? setFilterA : setFilterB;
+          return (
+            <div key={slot} className="relative w-56">
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground pointer-events-none">
+                {slot}:
+              </span>
+              <Input
+                placeholder={`Player ${slot}...`}
+                value={val}
+                onChange={(e) => set(e.target.value)}
+                className="pl-7 pr-7 text-sm"
+              />
+              {val && (
+                <button
+                  onClick={() => set("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* Metric legend */}
