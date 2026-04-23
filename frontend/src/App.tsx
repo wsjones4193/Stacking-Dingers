@@ -10,12 +10,6 @@ import Leaderboard from "@/pages/Leaderboard";
 import Admin from "@/pages/Admin";
 import Articles from "@/pages/Articles";
 import Podcasts from "@/pages/Podcasts";
-import SoccerHome from "@/pages/soccer/SoccerHome";
-import SoccerPlayerHub from "@/pages/soccer/SoccerPlayerHub";
-import SoccerAdpExplorer from "@/pages/soccer/SoccerAdpExplorer";
-import SoccerOdds from "@/pages/soccer/SoccerOdds";
-import SoccerRankings from "@/pages/soccer/SoccerRankings";
-import SoccerProjectedXI from "@/pages/soccer/SoccerProjectedXI";
 
 export default function App() {
   return (
@@ -35,14 +29,6 @@ export default function App() {
         <Route path="/articles/:slug" element={<Articles />} />
         <Route path="/podcasts" element={<Podcasts />} />
         <Route path="/admin/*" element={<Admin />} />
-        {/* Soccer — The World Pup */}
-        <Route path="/soccer" element={<SoccerHome />} />
-        <Route path="/soccer/players" element={<SoccerPlayerHub />} />
-        <Route path="/soccer/players/:playerId" element={<SoccerPlayerHub />} />
-        <Route path="/soccer/adp" element={<SoccerAdpExplorer />} />
-        <Route path="/soccer/odds" element={<SoccerOdds />} />
-        <Route path="/soccer/rankings" element={<SoccerRankings />} />
-        <Route path="/soccer/xi" element={<SoccerProjectedXI />} />
       </Routes>
     </Layout>
   );

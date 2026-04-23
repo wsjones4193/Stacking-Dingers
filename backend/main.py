@@ -17,11 +17,6 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.db.s3_sync import sync_data_from_s3
 from backend.routers import admin, adp, combos, content, history, leaderboard, players, teams
-from backend.soccer.routers import adp as soccer_adp
-from backend.soccer.routers import odds as soccer_odds
-from backend.soccer.routers import players as soccer_players
-from backend.soccer.routers import rankings as soccer_rankings
-from backend.soccer.routers import xi as soccer_xi
 
 logger = logging.getLogger(__name__)
 
@@ -73,13 +68,6 @@ app.include_router(leaderboard.router, prefix="/api/leaderboard", tags=["leaderb
 app.include_router(content.router, prefix="/api/content",  tags=["content"])
 app.include_router(admin.router,   prefix="/api/admin",     tags=["admin"])
 app.include_router(combos.router,  prefix="/api/combos",    tags=["combos"])
-
-# Soccer — The World Pup
-app.include_router(soccer_players.router, prefix="/api/soccer/players", tags=["soccer"])
-app.include_router(soccer_adp.router,     prefix="/api/soccer/adp",     tags=["soccer"])
-app.include_router(soccer_odds.router,    prefix="/api/soccer/odds",    tags=["soccer"])
-app.include_router(soccer_rankings.router, prefix="/api/soccer/rankings", tags=["soccer"])
-app.include_router(soccer_xi.router,      prefix="/api/soccer/xi",      tags=["soccer"])
 
 
 # ---------------------------------------------------------------------------
