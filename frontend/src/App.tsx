@@ -5,6 +5,7 @@ import PlayerHub from "@/pages/PlayerHub";
 import TeamAnalyzer from "@/pages/TeamAnalyzer";
 import ADPExplorer from "@/pages/ADPExplorer";
 import CombosExplorer from "@/pages/CombosExplorer";
+import PlayerScoring from "@/pages/PlayerScoring";
 import HistoryBrowser from "@/pages/HistoryBrowser";
 import Leaderboard from "@/pages/Leaderboard";
 import Admin from "@/pages/Admin";
@@ -22,6 +23,7 @@ export default function App() {
         <Route path="/teams/:draftId" element={<TeamAnalyzer />} />
         <Route path="/adp" element={<ADPExplorer />} />
         <Route path="/combos" element={<CombosExplorer />} />
+        <Route path="/scoring" element={<PlayerScoring />} />
         <Route path="/history" element={<HistoryBrowser />} />
         <Route path="/history/:moduleId" element={<HistoryBrowser />} />
         <Route path="/leaderboard" element={<Leaderboard />} />

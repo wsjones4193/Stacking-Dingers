@@ -375,6 +375,33 @@ export interface AdpDailyTimeseriesEntry {
 }
 
 // ---------------------------------------------------------------------------
+// Player weekly scoring
+// ---------------------------------------------------------------------------
+
+export interface PlayerWeekRow {
+  week_number: number;
+  round_number: number;  // 1-4, 0 = non-playoff
+  hitting_points: number | null;
+  pitching_points: number | null;
+  total_points: number;
+}
+
+export interface PlayerWeeklyScoringData {
+  player_id: number;
+  name: string;
+  position: string;
+  mlb_team: string | null;
+  season: number;
+  weeks: PlayerWeekRow[];
+  summary: {
+    total_points: number;
+    peak_week: number;
+    avg_per_week: number;
+    weeks_played: number;
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Combos
 // ---------------------------------------------------------------------------
 

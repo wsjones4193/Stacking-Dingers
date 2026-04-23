@@ -17,6 +17,7 @@ from backend.db.models import (
     Draft,
     Pick,
     Player,
+    PlayerWeeklyScore,
     Projection,
     RosterFlag,
     WeeklyScore,
@@ -243,5 +244,86 @@ def get_player_history(
         data={"player": PlayerSummary.model_validate(player), "seasons": history},
         sample_size=sample,
         low_confidence=sample < LOW_CONFIDENCE_THRESHOLD,
+        data_as_of=date.today().isoformat(),
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /api/players/{player_id}/weekly-scoring?season=2025
+# Returns per-week points from player_weekly_scores, enriched with round info
+# ---------------------------------------------------------------------------
+
+# Week → round_number lookup (embedded; matches data/weeks/*.csv)
+_WEEK_ROUNDS: dict[int, dict[int, int]] = {
+    2024: {**{w: 1 for w in range(1, 17)}, **{w: 2 for w in [17, 18]},
+           **{w: 3 for w in [19, 20]}, **{w: 4 for w in [21, 22]}},
+    2025: {**{w: 1 for w in range(1, 18)}, **{w: 2 for w in [18, 19]},
+           **{w: 3 for w in [20, 21]}, **{w: 4 for w in [22, 23]}},
+    2026: {**{w: 1 for w in range(1, 17)}, **{w: 2 for w in [17, 18]},
+           **{w: 3 for w in [19, 20]}, **{w: 4 for w in [21, 22]}},
+}
+
+
+@router.get("/{player_id}/weekly-scoring", response_model=DataResponse)
+def get_player_weekly_scoring(
+    player_id: int,
+    session: SessionDep,
+    season: int = Query(default=2025),
+):
+    """Per-week points for a player from player_weekly_scores, with round context."""
+    player = session.get(Player, player_id)
+    if not player:
+        raise HTTPException(status_code=404, detail="Player not found")
+
+    rows = session.exec(
+        select(PlayerWeeklyScore)
+        .where(PlayerWeeklyScore.mlb_id == player.mlb_id)
+        .where(PlayerWeeklyScore.season == season)
+        .order_by(PlayerWeeklyScore.week_number)
+    ).all() if player.mlb_id else []
+
+    week_rounds = _WEEK_ROUNDS.get(season, {})
+
+    # Merge hitting + pitching into one row per week
+    by_week: dict[int, dict] = {}
+    for r in rows:
+        w = r.week_number
+        if w not in by_week:
+            by_week[w] = {
+                "week_number": w,
+                "round_number": week_rounds.get(w, 0),
+                "hitting_points": None,
+                "pitching_points": None,
+                "total_points": 0.0,
+            }
+        if r.stat_type == "hitting":
+            by_week[w]["hitting_points"] = r.calculated_points
+        else:
+            by_week[w]["pitching_points"] = r.calculated_points
+        by_week[w]["total_points"] = round(
+            (by_week[w]["hitting_points"] or 0) + (by_week[w]["pitching_points"] or 0), 2
+        )
+
+    weeks = sorted(by_week.values(), key=lambda x: x["week_number"])
+    total = sum(w["total_points"] for w in weeks)
+    peak = max((w["total_points"] for w in weeks), default=0)
+    avg = round(total / len(weeks), 2) if weeks else 0
+
+    return DataResponse(
+        data={
+            "player_id": player.player_id,
+            "name": player.name,
+            "position": player.position,
+            "mlb_team": player.mlb_team,
+            "season": season,
+            "weeks": weeks,
+            "summary": {
+                "total_points": round(total, 2),
+                "peak_week": peak,
+                "avg_per_week": avg,
+                "weeks_played": len(weeks),
+            },
+        },
+        sample_size=len(weeks),
         data_as_of=date.today().isoformat(),
     )

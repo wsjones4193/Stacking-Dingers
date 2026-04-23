@@ -29,9 +29,10 @@ const CONTENT_ITEMS = [
 
 const DATA_ITEMS = [
   { to: "/adp", icon: TrendingUp, label: "ADP Explorer" },
+  { to: "/scoring", icon: BarChart, label: "Player Scoring" },
   { to: "/combos", icon: Shuffle, label: "Combos" },
   { to: "/history/positional-scarcity", icon: PieChart, label: "Positional Scarcity" },
-  { to: "/history/round-composition", icon: BarChart, label: "Round Composition" },
+  { to: "/history/round-composition", icon: BarChart2, label: "Round Composition" },
 ];
 
 const COMING_SOON_ITEMS = [

@@ -14,6 +14,7 @@ import type {
   AdpScatterPoint,
   ArticleDetail,
   ComboPair,
+  PlayerWeeklyScoringData,
   ArticleListResponse,
   CeilingData,
   ComboData,
@@ -163,6 +164,13 @@ export const getHistoryCombos = (
 
 export const getHistoryAdpAccuracy = (filters: GlobalFilters) =>
   get<DataResponse<AdpAccuracyEntry[]>>("/api/history/modules/adp-accuracy", filters);
+
+// ---------------------------------------------------------------------------
+// Player weekly scoring
+// ---------------------------------------------------------------------------
+
+export const getPlayerWeeklyScoring = (player_id: number, season: number) =>
+  get<DataResponse<PlayerWeeklyScoringData>>(`/api/players/${player_id}/weekly-scoring`, { season });
 
 // ---------------------------------------------------------------------------
 // Combos
