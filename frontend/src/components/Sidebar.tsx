@@ -6,6 +6,7 @@ import {
   BarChart2,
   BarChart,
   FileText,
+  Globe,
   Home,
   LayoutDashboard,
   Layers,
@@ -17,6 +18,7 @@ import {
   Star,
   Target,
   TrendingUp,
+  Trophy,
   Users,
   X,
 } from "lucide-react";
@@ -152,6 +154,18 @@ export default function Sidebar({ onClose }: SidebarProps) {
               <span className="flex-1">Leaderboard</span>
               <span className="text-[10px] text-muted-foreground/60 font-normal">🚧</span>
             </NavLink>
+          </div>
+        </div>
+        {/* World Pup — Soccer */}
+        <div>
+          <p className="px-3 mb-1 text-xs font-semibold uppercase tracking-wider text-emerald-600/80">World Pup ⚽</p>
+          <div className="flex flex-col gap-1">
+            <NavItem to="/soccer" icon={Globe} label="Dashboard" onClick={onClose} />
+            <NavItem to="/soccer/players" icon={Users} label="Players" onClick={onClose} />
+            <NavItem to="/soccer/adp" icon={TrendingUp} label="ADP Explorer" onClick={onClose} />
+            <NavItem to="/soccer/odds" icon={Trophy} label="Team Odds" onClick={onClose} />
+            <NavItem to="/soccer/rankings" icon={Star} label="Rankings" onClick={onClose} />
+            <NavItem to="/soccer/xi" icon={LayoutDashboard} label="Projected XI" onClick={onClose} />
           </div>
         </div>
       </nav>

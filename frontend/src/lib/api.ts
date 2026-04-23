@@ -237,3 +237,84 @@ export const adminCreateEpisode = (body: {
 
 export const adminDeleteEpisode = (episodeId: number) =>
   fetch(`${import.meta.env.VITE_API_BASE_URL ?? ""}/api/admin/podcasts/${episodeId}`, { method: "DELETE" });
+
+// ---------------------------------------------------------------------------
+// Soccer — The World Pup
+// ---------------------------------------------------------------------------
+
+import type {
+  AdpHistoryPoint,
+  ProjectedXI,
+  RankingList,
+  RankingListSummary,
+  SoccerAdpMovement,
+  SoccerAdpScarcity,
+  SoccerAdpScatterPoint,
+  SoccerDataResponse,
+  SoccerPlayerDetail,
+  SoccerPlayerSearchResult,
+  TeamOddsRow,
+} from "@/types/soccer";
+
+export const searchSoccerPlayers = (q: string, position?: string, nationality?: string) =>
+  get<SoccerDataResponse<SoccerPlayerSearchResult[]>>("/api/soccer/players/search", { q, position, nationality })
+    .then((r) => r.data);
+
+export const getSoccerPlayersByPosition = (position: string, nationality?: string) =>
+  get<SoccerDataResponse<SoccerPlayerSearchResult[]>>("/api/soccer/players/by-position", { position, nationality })
+    .then((r) => r.data);
+
+export const getSoccerPlayer = (playerId: number) =>
+  get<SoccerDataResponse<SoccerPlayerDetail>>(`/api/soccer/players/${playerId}`)
+    .then((r) => r.data);
+
+export const getSoccerAdpScatter = (position?: string, nationality?: string) =>
+  get<SoccerDataResponse<SoccerAdpScatterPoint[]>>("/api/soccer/adp/scatter", { position, nationality })
+    .then((r) => r.data);
+
+export const getSoccerAdpMovement = (days?: number, position?: string) =>
+  get<SoccerDataResponse<SoccerAdpMovement[]>>("/api/soccer/adp/movement", { days, position })
+    .then((r) => r.data);
+
+export const getSoccerAdpScarcity = () =>
+  get<SoccerDataResponse<SoccerAdpScarcity[]>>("/api/soccer/adp/scarcity")
+    .then((r) => r.data);
+
+export const getSoccerAdpHistory = (playerId: number, days?: number) =>
+  get<SoccerDataResponse<AdpHistoryPoint[]>>(`/api/soccer/adp/history/${playerId}`, { days })
+    .then((r) => r.data);
+
+export const getSoccerTeamOdds = () =>
+  get<SoccerDataResponse<TeamOddsRow[]>>("/api/soccer/odds/")
+    .then((r) => r.data);
+
+export const getSoccerXI = (teamName: string) =>
+  get<SoccerDataResponse<ProjectedXI>>(`/api/soccer/xi/${encodeURIComponent(teamName)}`)
+    .then((r) => r.data);
+
+export const getSoccerXITeams = () =>
+  get<SoccerDataResponse<string[]>>("/api/soccer/xi/teams")
+    .then((r) => r.data);
+
+export const getAllWCTeams = () =>
+  get<SoccerDataResponse<string[]>>("/api/soccer/xi/all-teams")
+    .then((r) => r.data);
+
+export const listSoccerRankings = () =>
+  get<SoccerDataResponse<RankingListSummary[]>>("/api/soccer/rankings/")
+    .then((r) => r.data);
+
+export const getSoccerRanking = (rankingId: number) =>
+  get<SoccerDataResponse<RankingList>>(`/api/soccer/rankings/${rankingId}`)
+    .then((r) => r.data);
+
+export const createSoccerRanking = (body: { name: string; description?: string; position_filter?: string; entries?: { player_id: number; tier?: number; notes?: string }[] }) =>
+  post<SoccerDataResponse<RankingList>>("/api/soccer/rankings/", body)
+    .then((r) => r.data);
+
+export const updateSoccerRanking = (rankingId: number, body: { name?: string; description?: string; position_filter?: string; entries?: { player_id: number; tier?: number; notes?: string }[] }) =>
+  patch<SoccerDataResponse<RankingList>>(`/api/soccer/rankings/${rankingId}`, body)
+    .then((r) => r.data);
+
+export const deleteSoccerRanking = (rankingId: number) =>
+  fetch(`${import.meta.env.VITE_API_BASE_URL ?? ""}/api/soccer/rankings/${rankingId}`, { method: "DELETE" });

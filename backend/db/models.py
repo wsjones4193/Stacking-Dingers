@@ -376,6 +376,8 @@ class AdpRoundComposition(SQLModel, table=True):
 def create_db_and_tables(db_path: str = "data/bestball.db") -> None:
     """Create all tables in the SQLite database if they don't exist."""
     from sqlmodel import create_engine
+    # Import soccer models so SQLModel registers them in metadata before create_all
+    import backend.soccer.db_models  # noqa: F401
     engine = create_engine(f"sqlite:///{db_path}", echo=False)
     SQLModel.metadata.create_all(engine)
     return engine
