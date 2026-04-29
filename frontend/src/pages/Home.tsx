@@ -1,7 +1,7 @@
 /**
  * Home page — brand-forward landing with hero, season status, and feature overview.
  */
-import { BarChart2, Search, TrendingUp } from "lucide-react";
+import { BarChart2, Mic, TrendingUp } from "lucide-react";
 
 // 2026 season week calendar (start dates inclusive, end dates inclusive)
 const WEEKS_2026 = [
@@ -56,9 +56,9 @@ const FEATURES = [
     body: "Track how average draft position moves across the draft window, spot positional scarcity cliffs, and see which player combos are being drafted together.",
   },
   {
-    icon: Search,
-    title: "Player Scoring",
-    body: "Weekly point totals broken down by round — see who's contributing in the money weeks vs. padding stats during Round 1.",
+    icon: Mic,
+    title: "Strategy Content",
+    body: "Articles and podcast episodes from the Stacking Dingers team — draft strategy, player analysis, and tournament breakdowns.",
   },
   {
     icon: BarChart2,
